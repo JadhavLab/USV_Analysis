@@ -8,7 +8,7 @@
 
 %% first we preprocess data
 
-edit preprocess_deepsqueak
+edit importdeepsqueakexcel
 
 %%
 %%%%%%%%  now analyze data %%%%%%%%%%%%%
