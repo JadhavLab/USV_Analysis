@@ -7,37 +7,54 @@
 start_day = 6;  %First recordings on P6
 interval = 2;   %Record every 2 days
 end_day = 18;   %Last recordings on P18
+n_days = length(start_day:interval:end_day);
 
 %% initialize variables
 m_duration = [];
-m_delta_freq_kHz = [];
-m_frequency_standard_deviation_kHz = [];
-m_principal_frequency_kHz = [];
-m_tonality = [];
-m_slope_kHzs = [];
-m_mean_power_dBHz = [];
-
-label = [];
+se_duration = [];
 
 %% Get daily means for all variables
 
 subj_means = [];
+subj_sds = [];
+subj_names = unique(T.Var2);
 
-for k=start_day:interval:end_day
-    dummy = (combined_usvs.Var1==int2str(k));
-    subtable = combined_usvs(dummy,:);
+for k=1:n_days
+    day = (start_day-interval)+(k*interval);
+    indexes = T.Var1==int2str(day);
+    subT = T(indexes,:);
     
-    m_duration(end+1) = mean(subtable.CallLengths);
+    m_duration(end+1) = mean(subT.CallLengths);
+    for n=1:length(subj_names)
+        indiv_indexes = subT.Var2==subj_names(n);
+        subsubT = subT(indiv_indexes,:);
+        subj_means(n,k) = mean(subsubT.CallLengths);
+        subj_sds(n,k) = std(subsubT.CallLengths);
+    end
     
-    
-%     delta_freq_kHz(end+1) = mean(subtable.DeltaFreqkHz);
-%     frequency_standard_deviation_kHz(end+1) = mean(subtable.FrequencyStandardDeviationkHz);
-%     principal_frequency_kHz(end+1) = mean(subtable.PrincipalFrequencykHz);
-%     tonality(end+1) = mean(subtable.Tonality);
-%     slope_kHzs(end+1) = mean(subtable.SlopekHzs);
-%     mean_power_dBHz(end+1) = mean(subtable.MeanPowerdBHz);
+    m_duration(end) = mean(subT.CallLengths); %Mean duration for all calls that day
 end
 
-%boxplot(combined_usvs.CallLengths,combined_usvs.Var1)
-%axis([0,8,0,.4]);
+se_duration = std(subj_sds, 'omitnan');
+daily_subject_means = mean(subj_means, 'omitnan');
+
+%% Figures
+
+errorbar(daily_subject_means,se_duration,'k-','LineWidth',1)
+hold on;
+box off;
+zoom out;
+xticklabels([start_day:interval:end_day]);
+title('Call Duration');
+xlabel('Postnatal Day');
+ylabel('Mean subject call duration (sec)');
+
+p = anova1(subj_means);
+hold on;
+box off;
+xticklabels([start_day:interval:end_day]);
+title('Call Duration');
+xlabel('Postnatal Day');
+ylabel('Mean subject call duration (sec)');
+
 
