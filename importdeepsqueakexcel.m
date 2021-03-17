@@ -1,5 +1,6 @@
 % Specify the folder where the files live.
-myFolder = 'D:\USV\logs';
+
+myFolder = uigetdir;
 if ~isfolder(myFolder)
     errorMessage = sprintf('Error: The following folder does not exist:\n%s\nPlease specify a new folder.', myFolder);
     uiwait(warndlg(errorMessage));
