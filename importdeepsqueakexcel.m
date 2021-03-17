@@ -55,5 +55,3 @@ for k = 2:length(theFiles)
     file_stats = horzcat(file_identifier_cols, file_stats);
     combined_usvs = [combined_usvs; file_stats(2:end,:)];
 end
-
-combined_usvs
