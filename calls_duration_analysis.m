@@ -65,55 +65,69 @@ plotSpread(subj_means_duration)
 ylabel('Mean subject call duration (sec)');
 
 
-
-
-%% daily duration means by animal
-dayratduration=[];
-for k=1:n_days
-    day = (start_day-interval)+(k*interval);
-    dayidx=T.Var1==int2str(day);
-    [~,~,ratIDs]=unique(T.Var2);
-    dayduration(:,k)=accumarray(ratIDs(dayidx), T.CallLengths(dayidx),[], @mean);
-end
-
-figure; plot(start_day:interval:end_day,dayduration','Color',[.7 .7 .7]);
+figure(6)
 hold on;
-errorbar(start_day:interval:end_day,nanmean(dayduration),nanstd(dayduration),...
-    'CapSize',0,'Color','k','LineWidth',4);    
-xlabel('Postnatal day'); ylabel('Mean Call Duration');
+colormap = parula;
+colormap12 = colormap(1:256/12:256,:)
+subj_means_duration_sorted = sortrows(subj_means_duration,1,'ascend')
 
-%% Howabout DeltaFreq
-
-daydeltafreq=[];
-for k=1:n_days
-    day = (start_day-interval)+(k*interval);
-    dayidx=T.Var1==int2str(day);
-    [~,~,ratIDs]=unique(T.Var2);
-    daydeltafreq(:,k)=accumarray(ratIDs(dayidx), T.DeltaFreqkHz(dayidx),[], @mean);
+for m=1:12
+    plot(subj_means_duration_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
 end
+title('Call Duration');
+xlabel('Postnatal Day');
+ylabel('Mean subject call duration (sec)');
+xticklabels([start_day:interval:end_day]);
 
-figure; plot(start_day:interval:end_day,daydeltafreq','Color',[.7 .7 .7]);
-hold on;
-errorbar(start_day:interval:end_day,nanmean(daydeltafreq),nanstd(daydeltafreq),...
-    'CapSize',0,'Color','k','LineWidth',4);
-xlabel('Postnatal day'); ylabel('Call Frequency Span');
-
-%% and call count
-
-daycount=[];
-for k=1:n_days
-    day = (start_day-interval)+(k*interval);
-    dayidx=T.Var1==int2str(day);
-    [~,~,ratIDs]=unique(T.Var2);
-    daycount(:,k)=accumarray(ratIDs(dayidx), T.DeltaFreqkHz(dayidx),[], @length);
-end
-
-figure; plot(start_day:interval:end_day,daycount','Color',[.7 .7 .7]);
-hold on;
-errorbar(start_day:interval:end_day,nanmean(daycount),nanstd(daycount),...
-    'CapSize',0,'Color','k','LineWidth',4);
-xlabel('Postnatal day'); ylabel('Call count');
-
-%% So what else are we curious about?
-
-figure; plot3(
+% 
+% 
+% %% daily duration means by animal
+% dayratduration=[];
+% for k=1:n_days
+%     day = (start_day-interval)+(k*interval);
+%     dayidx=T.Var1==int2str(day);
+%     [~,~,ratIDs]=unique(T.Var2);
+%     dayduration(:,k)=accumarray(ratIDs(dayidx), T.CallLengths(dayidx),[], @mean);
+% end
+% 
+% figure; plot(start_day:interval:end_day,dayduration','Color',[.7 .7 .7]);
+% hold on;
+% errorbar(start_day:interval:end_day,nanmean(dayduration),nanstd(dayduration),...
+%     'CapSize',0,'Color','k','LineWidth',4);    
+% xlabel('Postnatal day'); ylabel('Mean Call Duration');
+% 
+% %% Howabout DeltaFreq
+% 
+% daydeltafreq=[];
+% for k=1:n_days
+%     day = (start_day-interval)+(k*interval);
+%     dayidx=T.Var1==int2str(day);
+%     [~,~,ratIDs]=unique(T.Var2);
+%     daydeltafreq(:,k)=accumarray(ratIDs(dayidx), T.DeltaFreqkHz(dayidx),[], @mean);
+% end
+% 
+% figure; plot(start_day:interval:end_day,daydeltafreq','Color',[.7 .7 .7]);
+% hold on;
+% errorbar(start_day:interval:end_day,nanmean(daydeltafreq),nanstd(daydeltafreq),...
+%     'CapSize',0,'Color','k','LineWidth',4);
+% xlabel('Postnatal day'); ylabel('Call Frequency Span');
+% 
+% %% and call count
+% 
+% daycount=[];
+% for k=1:n_days
+%     day = (start_day-interval)+(k*interval);
+%     dayidx=T.Var1==int2str(day);
+%     [~,~,ratIDs]=unique(T.Var2);
+%     daycount(:,k)=accumarray(ratIDs(dayidx), T.DeltaFreqkHz(dayidx),[], @length);
+% end
+% 
+% figure; plot(start_day:interval:end_day,daycount','Color',[.7 .7 .7]);
+% hold on;
+% errorbar(start_day:interval:end_day,nanmean(daycount),nanstd(daycount),...
+%     'CapSize',0,'Color','k','LineWidth',4);
+% xlabel('Postnatal day'); ylabel('Call count');
+% 
+% %% So what else are we curious about?
+% 
+% %figure; plot3

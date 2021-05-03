@@ -62,3 +62,17 @@ plotSpread(subj_means_slope)
 title('USV slope');
 xlabel('Postnatal Day');
 ylabel('Mean subject USV slope (kHz/s)');
+
+figure(7)
+hold on;
+colormap = parula;
+colormap12 = colormap(1:256/12:256,:)
+subj_means_slope_sorted = sortrows(subj_means_slope,1,'ascend')
+
+for m=1:12
+    plot(subj_means_slope_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
+end
+title('USV slope');
+xlabel('Postnatal Day');
+ylabel('Mean subject USV slope (kHz/s)');
+xticklabels([start_day:interval:end_day]);

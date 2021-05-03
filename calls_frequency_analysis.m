@@ -103,3 +103,31 @@ figure(6)
 hold on;
 plotSpread(subj_means_delta)
 ylabel('Mean subject USV dFrequency (kHz)');
+
+figure(9)
+hold on;
+colormap = parula;
+colormap12 = colormap(1:256/12:256,:)
+subj_means_principal_sorted = sortrows(subj_means_principal,1,'ascend')
+
+for m=1:12
+    plot(subj_means_principal_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
+end
+title('Principal USV frequency');
+xlabel('Postnatal Day');
+ylabel('Mean subject principal USV frequency (kHz)');
+xticklabels([start_day:interval:end_day]);
+
+figure(10)
+hold on;
+colormap = parula;
+colormap12 = colormap(1:256/12:256,:)
+subj_means_delta_sorted = sortrows(subj_means_delta,1,'ascend')
+
+for m=1:12
+    plot(subj_means_delta_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
+end
+title('USV Delta frequency');
+xlabel('Postnatal Day');
+ylabel('Mean subject USV dFrequency (kHz)');
+xticklabels([start_day:interval:end_day]);

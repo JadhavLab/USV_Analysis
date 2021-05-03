@@ -45,17 +45,31 @@ title('Number of calls');
 xlabel('Postnatal Day');
 ylabel('Number of USVs');
 
+%% Plots
+
+% Plot individual and overall means by day, with error bar
 figure(5);
 hold on;
 errorbar(daily_means,se_count,'k-','LineWidth',1)
-%plot(daily_subject_means,'k-','LineWidth',1)
+    %plot(daily_subject_means,'k-','LineWidth',1)
 box off;
 zoom out;
 xticklabels([start_day:interval:end_day]);
-
-figure(5)
-hold on;
-plotSpread(day_counts)
 title('Number of calls');
 xlabel('Postnatal Day');
 ylabel('Number of USVs');
+
+% Plot individual means by day, tracking each subject
+figure(8)
+hold on;
+colormap = parula;
+colormap12 = colormap(1:256/12:256,:)
+day_counts_sorted = sortrows(day_counts,1,'ascend')
+
+for m=1:12
+    plot(day_counts_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
+end
+title('Number of calls');
+xlabel('Postnatal Day');
+ylabel('Number of USVs');
+xticklabels([start_day:interval:end_day]);
