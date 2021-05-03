@@ -41,38 +41,25 @@ subject_7day = mean(subj_means_slope, 2, 'omitnan');      %Mean across days per 
 %% Figures
 
 [p,tab,stats] = kruskalwallis(subj_means_slope);
-hold on;
-box off;
+hold on; box off;
 xticklabels([start_day:interval:end_day]);
 title('USV slope');
 xlabel('Postnatal Day');
 ylabel('Mean subject USV slope (kHz/s)');
 
-figure(3);
-hold on;
+figure(3); hold on;
 errorbar(daily_subject_means,se_slope,'k-','LineWidth',1)
-%plot(daily_subject_means,'k-','LineWidth',1)
-box off;
-zoom out;
-xticklabels([start_day:interval:end_day]);
-
-figure(3)
-hold on;
 plotSpread(subj_means_slope)
+%plot(daily_subject_means,'k-','LineWidth',1)
+box off; zoom out;
 title('USV slope');
 xlabel('Postnatal Day');
 ylabel('Mean subject USV slope (kHz/s)');
+xticklabels([start_day:interval:end_day]);
+
 
 figure(7)
 hold on;
 colormap = parula;
 colormap12 = colormap(1:256/12:256,:)
-subj_means_slope_sorted = sortrows(subj_means_slope,1,'ascend')
 
-for m=1:12
-    plot(subj_means_slope_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
-end
-title('USV slope');
-xlabel('Postnatal Day');
-ylabel('Mean subject USV slope (kHz/s)');
-xticklabels([start_day:interval:end_day]);

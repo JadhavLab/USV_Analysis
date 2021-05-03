@@ -1,12 +1,15 @@
 %% OVERLAY CALLS
 
+% DO NOT USE UNTIL you have run unsupervised clustering analysis
+
 % Uses ClusteringData cell from an Extracted Countours file
 % Isolates all image maps for each call cluster
 % Resizes and averages images to obtain an averaged call for each cluster
 % Used to assess homeogeneity/validity of the clusters
 
+%Resize all calls to 300x600 px image
 resize = [300 600];
-clusters = unique(T.Label);
+clusters = unique(T.Label); %Get the number of clusters
 
 figure(1);
 

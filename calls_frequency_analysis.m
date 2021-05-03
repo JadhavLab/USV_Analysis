@@ -55,45 +55,36 @@ subject_7day_delta = mean(subj_means_delta, 2, 'omitnan');      %Mean across day
 %% Figures for principal frequency
 
 [p,tab,stats] = kruskalwallis(subj_means_principal);
-hold on;
-box off;
+hold on; box off;
 xticklabels([start_day:interval:end_day]);
 title('Principal USV frequency');
 xlabel('Postnatal Day');
 ylabel('Mean subject principal USV frequency (kHz)');
 
-figure(3);
-hold on;
+figure(3); hold on;
 errorbar(daily_subject_means_principal,se_principal,'k-','LineWidth',1)
+plotSpread(subj_means_principal)
 %plot(daily_subject_means,'k-','LineWidth',1)
-box off;
-zoom out;
+box off; zoom out;
 xticklabels([start_day:interval:end_day]);
 title('Principal USV frequency');
 xlabel('Postnatal Day');
-ylabel('Mean subject principal USV frequency (kHz)');
-
-figure(3)
-hold on;
-plotSpread(subj_means_principal)
 ylabel('Mean subject principal USV frequency (kHz)');
 
 %% Figures for delta frequency
 
 [p,tab,stats] = kruskalwallis(subj_means_delta);
-hold on;
-box off;
+hold on; box off;
 xticklabels([start_day:interval:end_day]);
 title('USV Delta frequency');
 xlabel('Postnatal Day');
 ylabel('Mean subject USV dFrequency (kHz)');
 
-figure(6);
-hold on;
+figure(6);hold on;
 errorbar(daily_subject_means_delta,se_delta,'k-','LineWidth',1)
+plotSpread(subj_means_delta)
 %plot(daily_subject_means,'k-','LineWidth',1)
-box off;
-zoom out;
+box off; zoom out;
 xticklabels([start_day:interval:end_day]);
 title('USV Delta frequency');
 xlabel('Postnatal Day');
@@ -101,7 +92,6 @@ ylabel('Mean subject USV dFrequency (kHz)');
 
 figure(6)
 hold on;
-plotSpread(subj_means_delta)
 ylabel('Mean subject USV dFrequency (kHz)');
 
 figure(9)

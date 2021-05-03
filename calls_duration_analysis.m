@@ -41,36 +41,25 @@ subject_7day_duration = mean(subj_means_duration, 2, 'omitnan');      %Mean acro
 %% Figures
 
 [p,tab,stats] = kruskalwallis(subj_means_duration);
-hold on;
-box off;
+hold on; box off;
 xticklabels([start_day:interval:end_day]);
 title('Call Duration');
 xlabel('Postnatal Day');
 ylabel('Mean subject call duration (sec)');
 
-figure(3);
-hold on;
+figure(3); hold on;
 errorbar(daily_subject_means_duration,se_duration,'k-','LineWidth',1)
+plotSpread(subj_means_duration)
 %plot(daily_subject_means,'k-','LineWidth',1)
-box off;
-zoom out;
+box off; zoom out;
 xticklabels([start_day:interval:end_day]);
 title('Call Duration');
 xlabel('Postnatal Day');
 ylabel('Mean subject call duration (sec)');
 
-figure(3)
-hold on;
-plotSpread(subj_means_duration)
-ylabel('Mean subject call duration (sec)');
 
-
-figure(6)
-hold on;
-colormap = parula;
-colormap12 = colormap(1:256/12:256,:)
+figure(6); hold on;
 subj_means_duration_sorted = sortrows(subj_means_duration,1,'ascend')
-
 for m=1:12
     plot(subj_means_duration_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
 end

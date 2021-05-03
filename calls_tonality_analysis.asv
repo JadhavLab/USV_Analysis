@@ -49,14 +49,15 @@ ylabel('Mean subject USV tonality (dB/kHz)');
 
 figure(3); hold on;
 errorbar(daily_subject_means,se_tonality,'k-','LineWidth',1)
-plotSpread(subj_means_tonality)
 %plot(daily_subject_means,'k-','LineWidth',1)
 box off; zoom out;
+xticklabels([start_day:interval:end_day]);
+
+figure(3)
+hold on;
 title('Tonality');
 xlabel('Postnatal Day');
 ylabel('Mean subject USV tonality (dB/kHz)');
-xticklabels([start_day:interval:end_day]);
-
 
 figure(6)
 hold on;
