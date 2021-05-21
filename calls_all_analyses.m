@@ -7,7 +7,7 @@ start_day = str2num(cell2mat(info(1)));    %First recordings on P6
 interval = str2num(cell2mat(info(2)));     %Record every 2 days
 end_day = str2num(cell2mat(info(3)));      %Last recordings on P18
 n_days = length(start_day:interval:end_day);
-
+%%
 call_list={'count','CallLengths','PrincipalFrequencykHz',...
     'SlopekHzs','Tonality','DeltaFreqkHz'};
 call_list=cohortfull.Properties.VariableNames;
@@ -46,7 +46,14 @@ for i=1:length(indx_params)
                 subj_means(n,k) = sum(indiv_indexes);
                 if sum(indiv_indexes)==0, subj_means(n,k)=nan; end
             end
-           
+        elseif call_list{indx_params(i)}=='KmeansID'
+            for n=1:length(subj_names)
+                indiv_indexes = subT.ratNumber==subj_names(n); % pull this rat
+                for kn=1:max(cohortfull.KmeansID)
+                    subj_means(n,k,kn) = sum(subT.KmeansID(indiv_indexes)==kn);
+                end
+                if sum(indiv_indexes)==0, subj_means(n,k)=nan; end
+            end
         else
             for n=1:length(subj_names)
                 indiv_indexes = subT.ratNumber==subj_names(n);
@@ -89,20 +96,89 @@ for i=1:length(indx_params)
 
     % Plot individual means by day, tracking each subject
     if (any(indx_analysis==4))
-        figure(30+i); hold on;
-        day_counts_sorted = sortrows(subj_means,1,'ascend');
-
-        for m=1:size(day_counts_sorted,1)
-            pl(m)=plot(day_counts_sorted(m,:),'Color',mycolormap(m,:),'LineWidth',1.5);
+        if ~call_list{indx_params(i)}=='KmeansID'
+            figure(30+i); hold on;
+            day_counts_sorted = sortrows(subj_means,1,'ascend');
+            
+            for m=1:size(day_counts_sorted,1)
+                pl(m)=plot(day_counts_sorted(m,:),'Color',mycolormap(m,:),'LineWidth',1.5);
+            end
+            box off; zoom out;
+            title(call_list{indx_params(i)});
+            xlabel('Postnatal Day');
+            ylabel(call_list{indx_params(i)});
+            xticklabels(start_day:interval:end_day);
+            legend(pl(b),a);
+        else
+            for kn=1:size(subj_means,3)
+                % Plot individual means by day, tracking each subject
+                
+                figure(30+kn); hold on;
+                day_counts_sorted = sortrows(subj_means(:,:,kn),1,'ascend');
+                
+                for m=1:size(day_counts_sorted,1)
+                    pl(m)=plot(day_counts_sorted(m,:),'Color',mycolormap(m,:),'LineWidth',1.5);
+                end
+                box off; zoom out;
+                title(sprintf('%s call %d',call_list{indx_params(i)},kn));
+                xlabel('Postnatal Day');
+                ylabel(call_list{indx_params(i)});
+                xticklabels(start_day:interval:end_day);
+                legend(pl(b),a);
+            end
         end
-        box off; zoom out;
-        title(call_list{indx_params(i)});
-        xlabel('Postnatal Day');
-        ylabel(call_list{indx_params(i)});
-        xticklabels(start_day:interval:end_day);
-        legend(pl(b),a);
     end
+    
 end
+%%
+
+
+% first get a pca analysis going
+
+
+
+pcamat=cell2mat(table2cell(cohortfull(:,8:17)));
+
+[a,b,c,~,explained]=pca(pcamat);
+
+cohortfull.PC1=b(:,1);
+cohortfull.PC2=b(:,2);
+cohortfull.PC3=b(:,3);
+
+% kmeans
+
+
+rng(1);
+[idx,C,sumd] = kmeans(pcamat,10);
+
+
+cohortfull.KmeansID=idx;
+
+
+%%
+
+x1 = min(X(:,1)):0.01:max(X(:,1));
+x2 = min(X(:,2)):0.01:max(X(:,2));
+[x1G,x2G] = meshgrid(x1,x2);
+XGrid = [x1G(:),x2G(:)]; % Defines a fine grid on the plot
+
+idx2Region = kmeans(XGrid,3,'MaxIter',1,'Start',C);
+
+rng(1); % For reproducibility
+[idx,C] = kmeans(X,3);
+
+figure;
+gscatter(XGrid(:,1),XGrid(:,2),idx2Region,...
+    [0,0.75,0.75;0.75,0,0.75;0.75,0.75,0],'..');
+hold on;
+plot(X(:,1),X(:,2),'k*','MarkerSize',5);
+title 'Fisher''s Iris Data';
+xlabel 'Petal Lengths (cm)';
+ylabel 'Petal Widths (cm)'; 
+legend('Region 1','Region 2','Region 3','Data','Location','SouthEast');
+hold off;
+
+
 
 %% Duration analysis
 
