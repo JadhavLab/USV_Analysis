@@ -4,7 +4,7 @@
 % interval = str2num(cell2mat(info(2)));
 % end_day = str2num(cell2mat(info(3)));
 
-start_day = 6;  %First recordings on P6
+start_day = 4;  %First recordings on P6
 interval = 2;   %Record every 2 days
 end_day = 18;   %Last recordings on P18
 n_days = length(start_day:interval:end_day);
@@ -17,16 +17,16 @@ se_duration = [];
 
 subj_means_duration = [];
 subj_sds = [];
-subj_names = unique(T.Var2);
+subj_names = unique(cohortfull.ratID);
 
 for k=1:n_days
     day = (start_day-interval)+(k*interval);
-    indexes = T.Var1==int2str(day);
-    subT = T(indexes,:);
+    indexes = cohortfull.day==int2str(day);
+    subT = cohortfull(indexes,:);
     
     m_duration(end+1) = mean(subT.CallLengths);
     for n=1:length(subj_names)
-        indiv_indexes = subT.Var2==subj_names(n);
+        indiv_indexes = subT.ratID==subj_names(n);
         subsubT = subT(indiv_indexes,:);
         subj_means_duration(n,k) = mean(subsubT.CallLengths);
         subj_sds(n,k) = std(subsubT.CallLengths);
@@ -38,6 +38,12 @@ end
 se_duration = std(subj_sds, 'omitnan');
 daily_subject_means_duration = mean(subj_means_duration, 'omitnan');  %Mean across subjects per day
 subject_7day_duration = mean(subj_means_duration, 2, 'omitnan');      %Mean across days per subject
+
+
+
+
+     %Mean across days per subject
+
 %% Figures
 
 [p,tab,stats] = kruskalwallis(subj_means_duration);
@@ -61,16 +67,23 @@ ylabel('Mean subject call duration (sec)');
 figure(6); hold on;
 subj_means_duration_sorted = sortrows(subj_means_duration,1,'ascend')
 for m=1:12
-    plot(subj_means_duration_sorted(m,:),'Color',colormap12(m,:),'LineWidth',1.5);
+    plot(subj_means_duration_sorted(m,:),'Color',colormap(m,:),'LineWidth',1.5);
 end
 title('Call Duration');
 xlabel('Postnatal Day');
 ylabel('Mean subject call duration (sec)');
 xticklabels([start_day:interval:end_day]);
 
+%%
+
+%%
+%Get daily means for all variables per genotype
+
+
+
+
 % 
-% 
-% %% daily duration means by animal
+%daily duration means by animal
 % dayratduration=[];
 % for k=1:n_days
 %     day = (start_day-interval)+(k*interval);

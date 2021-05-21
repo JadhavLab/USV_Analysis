@@ -4,7 +4,7 @@
 % interval = str2num(cell2mat(info(2)));
 % end_day = str2num(cell2mat(info(3)));
 
-start_day = 6;  %First recordings on P6
+start_day = 4;  %First recordings on P6
 interval = 2;   %Record every 2 days
 end_day = 18;   %Last recordings on P18
 n_days = length(start_day:interval:end_day);
@@ -21,17 +21,17 @@ subj_means_principal = [];
 subj_sds = [];
 subj_means_delta = [];
 subj_sds_delta = [];
-subj_names = unique(T.Var2);
+subj_names = unique(cohortfull.ratID);
 
 for k=1:n_days
     day = (start_day-interval)+(k*interval);
-    indexes = T.Var1==int2str(day);
-    subT = T(indexes,:);
+    indexes = cohortfull.day==int2str(day);
+    subT = cohortfull(indexes,:);
     
     m_principal(end+1) = mean(subT.PrincipalFrequencykHz);
         m_delta(end+1) = mean(subT.DeltaFreqkHz);
     for n=1:length(subj_names)
-        indiv_indexes = subT.Var2==subj_names(n);
+        indiv_indexes = subT.ratID==subj_names(n);
         subsubT = subT(indiv_indexes,:);
         subj_means_principal(n,k) = mean(subsubT.PrincipalFrequencykHz);
         subj_sds(n,k) = std(subsubT.PrincipalFrequencykHz);

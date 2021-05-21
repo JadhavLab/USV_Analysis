@@ -4,7 +4,7 @@
 % interval = str2num(cell2mat(info(2)));
 % end_day = str2num(cell2mat(info(3)));
 
-start_day = 6;  %First recordings on P6
+start_day = 4;  %First recordings on P6
 interval = 2;   %Record every 2 days
 end_day = 18;   %Last recordings on P18
 n_days = length(start_day:interval:end_day);

@@ -8,55 +8,61 @@ interval = str2num(cell2mat(info(2)));     %Record every 2 days
 end_day = str2num(cell2mat(info(3)));      %Last recordings on P18
 n_days = length(start_day:interval:end_day);
 
-[indx_params] = listdlg('ListString',{'count','duration','frequency',...
-    'slope','tonality'},...
+call_list={'count','CallLengths','PrincipalFrequencykHz',...
+    'SlopekHzs','Tonality','DeltaFreqkHz'};
+call_list=cohortfull.Properties.VariableNames;
+
+[indx_params] = listdlg('ListString',call_list,...
     'PromptString',{'Select parameters to analyze'});
 
 [indx_analysis] = listdlg('ListString',{'kruskal-wallis anova','mean ranks multiple comparisons test'...
     'plot subject means (error bars)','plot subject means (individuals)'},...
     'PromptString',{'Select analyses to run'});
 
-subj_names = unique(cohortfull.ratID);
+[subj_names,a,b] = unique(cohortfull.ratNumber);
+subj_geno=cohortfull.Genotype(a);
 n_subjects = length(subj_names);
-colormap = parula;
-colormap_n = colormap(1:256/n_subjects:256,:); %que carajo es esto????
+mycolormap = parula(length(subj_names));
+
+% or genotype colormap
+[a,b,allgeno]=unique(subj_geno);
+mycolormap=lines(length(a));
+mycolormap=mycolormap(allgeno,:);
+% this goes over all
 
 %% Counts analysis
 
+for i=1:length(indx_params)
 
-if (any(indx_params==1))
-
-    % initialize variables
-    m_count = []; % mean
-    se_count = []; % standard error of mean
-    daily_means = []; % daily means
-    day_counts = []; % daily ?
-
-    % Get daily means for all variables
-    subj_names = unique(cohortfull.ratNumber);
-
-    mycolormap=parula(length(subj_names));
+    subj_means=[];
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.day==int2str(day);
+        indexes = cohortfull.Day==day;
         subT = cohortfull(indexes,:);               %Subtable containg only day k's data
-
-        for n=1:length(subj_names)
-            indiv_indexes = subT.ratNumber==subj_names(n);
-            day_counts(n,k) = sum(indiv_indexes);
-            if sum(indiv_indexes)==0, day_counts(n,k)=nan; end
+        if indx_params(i) ==1
+            
+            for n=1:length(subj_names)
+                indiv_indexes = subT.ratNumber==subj_names(n);
+                subj_means(n,k) = sum(indiv_indexes);
+                if sum(indiv_indexes)==0, subj_means(n,k)=nan; end
+            end
+           
+        else
+            for n=1:length(subj_names)
+                indiv_indexes = subT.ratNumber==subj_names(n);
+                subsubT = subT(indiv_indexes,:);
+                subj_means(n,k) = mean(subsubT.(call_list{indx_params(i)}));
+                subj_sds(n,k) = std(subsubT.(call_list{indx_params(i)}));
+            end
         end
     end
 
-    daily_means = mean(day_counts, 'omitnan');      %Mean across subjects per day
-    subject_means = mean(day_counts, 2, 'omitnan');  %Mean across days per subject
-    se_count = std(day_counts,1,'omitnan');
-
+    day_means=mean(subj_means);
     % Figures
     
     %K-W test
     if (any(indx_analysis==1))
-        [p,tab,stats] = kruskalwallis(day_counts);
+        [p,tab,stats] = kruskalwallis(subj_means);
         hold on; box off;
         xticklabels([start_day:interval:end_day]);
         title('Number of calls');
@@ -70,8 +76,8 @@ if (any(indx_params==1))
 
     % Plot individual and overall means by day, with error bar
     if (any(indx_analysis==3))
-        figure(10); hold on;
-        errorbar(daily_means,se_count,'k-','LineWidth',1)
+        figure(1+i); hold on;
+        errorbar(mean(subj_means,2,'omitnan'),SEM(subj_means,2),'k-','LineWidth',1)
             %plot(daily_subject_means,'k-','LineWidth',1)
         %plotSpread(day_counts);
         box off; zoom out;
@@ -83,17 +89,18 @@ if (any(indx_params==1))
 
     % Plot individual means by day, tracking each subject
     if (any(indx_analysis==4))
-        figure(11); hold on;
-        day_counts_sorted = sortrows(day_counts,1,'ascend');
+        figure(30+i); hold on;
+        day_counts_sorted = sortrows(subj_means,1,'ascend');
 
         for m=1:size(day_counts_sorted,1)
-            plot(day_counts_sorted(m,:),'Color',mycolormap(m,:),'LineWidth',1.5);
+            pl(m)=plot(day_counts_sorted(m,:),'Color',mycolormap(m,:),'LineWidth',1.5);
         end
         box off; zoom out;
-        title('Number of calls');
+        title(call_list{indx_params(i)});
         xlabel('Postnatal Day');
-        ylabel('Number of USVs');
-        xticklabels([start_day:interval:end_day]);
+        ylabel(call_list{indx_params(i)});
+        xticklabels(start_day:interval:end_day);
+        legend(pl(b),a);
     end
 end
 

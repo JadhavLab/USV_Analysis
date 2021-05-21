@@ -83,15 +83,13 @@ end
 
 lookuptable={'FF','FR','BR','BB','LL','BL','FL','RR';...
             'wt','het','fx','wt','wt','wt','het','wt';...
-            'm', 'f', 'm', 'm', 'f', 'm', 'f', 'm';...
             '320','321','322','323','324','325','326','327'};
         
         % strcmpi strfind find contains 
 for i=1:height(cohort2_full)
     tablematch=find(contains(lookuptable(1,:),cohort2_full.ratID(i,2:end)));
      cohort2_full.Genotype(i)=lookuptable(2,tablematch);
-     cohort2_full.ratSex(i)=lookuptable(3,tablematch); 
-     cohort2_full.ratNumber(i)=lookuptable(4,tablematch);  
+     cohort2_full.ratNumber(i)=lookuptable(3,tablematch);  
      cohort2_full.cohort(i)=2;
 end
         
@@ -110,13 +108,12 @@ cohort1_lookuptable= {'1FL', '2FFLL', '1BL', '2FLBR', '2FRBL', '2LL', '1FR', '3F
      cohort1_full.ratSex(i)=cohort1_lookuptable(3,tablematch);
      cohort1_full.ratNumber(i)=cohort1_lookuptable(4,tablematch);
      cohort1_full.cohort(i)=1; 
- end  
-cohort1_full.Day=str2double(cohort1_full.Day);
+end  
                   
 %% 
-cohortfull=[cohort1_full; cohort2_full];
+
 cohortfull(isnan(cohortfull.CallLengths),:)=[];
-cohortfull.ratNumber=str2double(cohortfull.ratNumber);
+
 
 
         
