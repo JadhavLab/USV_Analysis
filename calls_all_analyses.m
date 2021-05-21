@@ -150,8 +150,6 @@ cohortfull.PC3=b(:,3);
 
 rng(1);
 [idx,C,sumd] = kmeans(pcamat,10);
-
-
 cohortfull.KmeansID=idx;
 
 
@@ -251,6 +249,7 @@ if (any(indx_params==2))
         xlabel('Postnatal Day');
         ylabel('Mean subject call duration (sec)');
         xticklabels([start_day:interval:end_day]);
+        
     end
 end
 
@@ -356,7 +355,8 @@ if (any(indx_params==3))
         xlabel('Postnatal Day');
         ylabel('Mean subject principal USV frequency (kHz)');
         xticklabels([start_day:interval:end_day]);
-
+        
+    end
         figure(33); hold on;
         subj_means_delta_sorted = sortrows(subj_means_delta,1,'ascend');
         for m=1:length(subj_names)
@@ -367,7 +367,7 @@ if (any(indx_params==3))
         ylabel('Mean subject USV dFrequency (kHz)');
         xticklabels([start_day:interval:end_day]);
     end
-end
+
 
 %% Slope analysis
 
