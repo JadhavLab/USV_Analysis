@@ -1,4 +1,10 @@
 
+
+%% make variables better
+cohortfull.day=str2double(cohortfull.day);
+cohortfull.ratNumber=str2double(cohortfull.ratNumber);
+
+
 %% Get basic info about testing days, number of subjects, etc.
 
 info = inputdlg(["Start day","Interval","End day"], 'double');
@@ -20,6 +26,7 @@ call_list=cohortfull.Properties.VariableNames;
     'PromptString',{'Select analyses to run'});
 
 [subj_names,a,b] = unique(cohortfull.ratNumber);
+
 subj_geno=cohortfull.Genotype(a);
 n_subjects = length(subj_names);
 mycolormap = parula(length(subj_names));
@@ -30,6 +37,7 @@ mycolormap=lines(length(a));
 mycolormap=mycolormap(allgeno,:);
 % this goes over all
 
+
 %% Counts analysis
 
 for i=1:length(indx_params)
@@ -37,7 +45,7 @@ for i=1:length(indx_params)
     subj_means=[];
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.Day==day;
+        indexes = cohortfull.day==day;
         subT = cohortfull(indexes,:);               %Subtable containg only day k's data
         if indx_params(i) ==1
             
@@ -46,7 +54,7 @@ for i=1:length(indx_params)
                 subj_means(n,k) = sum(indiv_indexes);
                 if sum(indiv_indexes)==0, subj_means(n,k)=nan; end
             end
-        elseif call_list{indx_params(i)}=='KmeansID'
+        elseif strcmpi(call_list{indx_params(i)},'KmeansID')
             for n=1:length(subj_names)
                 indiv_indexes = subT.ratNumber==subj_names(n); % pull this rat
                 for kn=1:max(cohortfull.KmeansID)
@@ -88,15 +96,15 @@ for i=1:length(indx_params)
             %plot(daily_subject_means,'k-','LineWidth',1)
         %plotSpread(day_counts);
         box off; zoom out;
-        title('Number of calls');
-        xlabel('Postnatal Day');
-        ylabel('Number of USVs');
+      title(call_list{indx_params(i)});
+            xlabel('Postnatal Day');
+            ylabel(call_list{indx_params(i)});
         xticklabels(start_day:interval:end_day);
     end
 
     % Plot individual means by day, tracking each subject
     if (any(indx_analysis==4))
-        if ~call_list{indx_params(i)}=='KmeansID'
+        if ~strcmpi(call_list{indx_params(i)},'KmeansID')
             figure(30+i); hold on;
             day_counts_sorted = sortrows(subj_means,1,'ascend');
             
@@ -153,28 +161,6 @@ rng(1);
 cohortfull.KmeansID=idx;
 
 
-%%
-
-x1 = min(X(:,1)):0.01:max(X(:,1));
-x2 = min(X(:,2)):0.01:max(X(:,2));
-[x1G,x2G] = meshgrid(x1,x2);
-XGrid = [x1G(:),x2G(:)]; % Defines a fine grid on the plot
-
-idx2Region = kmeans(XGrid,3,'MaxIter',1,'Start',C);
-
-rng(1); % For reproducibility
-[idx,C] = kmeans(X,3);
-
-figure;
-gscatter(XGrid(:,1),XGrid(:,2),idx2Region,...
-    [0,0.75,0.75;0.75,0,0.75;0.75,0.75,0],'..');
-hold on;
-plot(X(:,1),X(:,2),'k*','MarkerSize',5);
-title 'Fisher''s Iris Data';
-xlabel 'Petal Lengths (cm)';
-ylabel 'Petal Widths (cm)'; 
-legend('Region 1','Region 2','Region 3','Data','Location','SouthEast');
-hold off;
 
 
 
