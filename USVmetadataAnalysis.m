@@ -31,7 +31,7 @@ USVcohorts.Properties.VariableNames{6} = 'ToeMarkings';
 
 %% now grab all files
 
-mydir=uigetdir;
+%mydir=uigetdir;
 
 subdirs=dir(mydir); subdirs(1:2)=[];
 
@@ -73,6 +73,7 @@ for i=1:length(USVfiles)
     if height(thisRat)==0
         thisRat=thisCohort(strcmpi(thisCohort.Animal,USVfiles(i).rat),:);
     end
+    USVfiles(i).isyoung=str2double(USVfiles(i).Day(2:end))<=10;
     if height(thisRat)>0
         USVfiles(i).Rat=thisRat.Animal;
         USVfiles(i).Genotype=thisRat.Genotype;
@@ -85,7 +86,35 @@ for i=1:length(USVfiles)
     end
 end
 
-    
-    
+USVfiles=struct2table(USVfiles);
+
+[a,b,c]=unique(USVfiles(:,[7 11 12 16]),'rows');
+
+
+Analysts={'Norelis','Jay','Zach'};
+
+for i=1:height(a)
+    % cycle through analysts (this ougth to be pretty uniform)
+    a.Analyst{i}=Analysts{mod(i,3)+1};
+    % gather the indices for our source pool
+    sourcepool=find(c==i);
+    % now pick a random session from that pool
+    sourceind=sourcepool(randi(length(sourcepool),1));
+    a.sourcefile{i}=USVfiles.name(sourceind);
+    a.fileloc{i}=USVfiles.folder(sourceind);
+end
+
+USVpreprocessLedger=a;
+% so we have 32 unique categories, so now we have to distribute them across
+% the experimenters
+
+% now divvy:
+%{
+So i want to balance across sex, genotype, cohort, and early v late.
+  
+The mid point of recordings is P10.  We can justify this because after P20,
+calls fall off in frequency
+  
+%}
     
     
