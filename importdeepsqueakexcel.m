@@ -14,6 +14,8 @@ end
 filePattern = fullfile(myFolder, '*.xlsx'); % Change to whatever pattern you need.
 theFiles = dir(filePattern);
 
+
+
 %% Initialize table options
 %{
 opts = spreadsheetImportOptions("NumVariables", 16);
@@ -32,7 +34,7 @@ opts = spreadsheetImportOptions("NumVariables", 16);
 
 % Specify sheet and range
 opts.Sheet = "Sheet1";
-opts.DataRange = "A2:P369";
+opts.DataRange = "A2:P1000";
 
 % Specify column names and types
 opts.VariableNames = ["ID", "Label", "Accepted", "Score", "BeginTimes", "EndTimes", "CallLengths", "PrincipalFrequencykHz", "LowFreqkHz", "HighFreqkHz", "DeltaFreqkHz", "FrequencyStandardDeviationkHz", "SlopekHzs", "Sinuosity", "MeanPowerdBHz", "Tonality"];
@@ -44,17 +46,19 @@ opts = setvaropts(opts, ["Label", "Accepted"], "EmptyFieldRule", "auto");
 
 %% Read in the first file to create a table to start with
 
-combined_usvs = readtable(theFiles(1).name, opts, "UseExcel", false);
+combined_usvs = readtable(fullfile(theFiles(1).folder,theFiles(1).name), opts, "UseExcel", false);
+combined_usvs(1,:)=[];
+endtable=find(isnan(combined_usvs.ID),1,'first');
+combined_usvs(endtable:end,:)=[];
 
-[pd, animal_id] = scrape_fileinfo(theFiles(1));
-if isempty(pd)
-    [pd, animal_id] = scrape_fileinfo2(theFiles(1));
-end
-    day_vec = repmat(str2double(pd),height(combined_usvs),1);
-    id_vec = repmat(animal_id,height(combined_usvs),1);
+%[pd, animal_id] = scrape_fileinfo(theFiles(1));
+
+[cohort, animal_id,age] = scrape_fileinfo2(theFiles(1).name);
+allRecordings=struct('rat',animal_id,'cohort',cohort,'age',age,...
+    'datatable',combined_usvs,'sourcefile',fullfile(theFiles(1).folder,theFiles(1).name));
+
     
-    combined_usvs.day=day_vec;
-    combined_usvs.ratID=id_vec;
+
 
 
 %% Loop through folder and add all other files to the big table
@@ -64,23 +68,26 @@ for k = 2:length(theFiles)
     fullFileName = fullfile(theFiles(k).folder, baseFileName);
     fprintf(1, 'Now reading %s\n', fullFileName);
     
-    [pd,animal_id] = scrape_fileinfo(theFiles(k));
-    if isempty(pd)
-        [pd, animal_id] = scrape_fileinfo2(theFiles(k));
-    end
-    file_stats = readtable(theFiles(k).name, opts, "UseExcel", false);
-    day_vec = repmat(str2double(pd),height(file_stats),1);
-    id_vec = repmat(animal_id,height(file_stats),1);
+    [cohort, animal_id,age] = scrape_fileinfo2(theFiles(k).name);
+    file_stats = readtable(fullFileName, opts, "UseExcel", false);
+    file_stats(1,:)=[];
+    endtable=find(isnan(file_stats.ID),1,'first');
+    file_stats(endtable:end,:)=[];
     
-    file_stats.day=day_vec;
-    file_stats.ratID=id_vec;
 
-
-    combined_usvs = [combined_usvs; file_stats];
+    allRecordings(k).rat=animal_id;
+    allRecordings(k).cohort=cohort;
+    allRecordings(k).age=age;
+    allRecordings(k).datatable=file_stats;
+    allRecordings(k).sourcefile=fullFileName;
+    
 end
 
-%% lookup table for which animals are which genotype
+B = regexp(A,'\d*','Match')
 
+%% lookup table for which animals are which genotype
+% this is only for cohort 1
+%{
 lookuptable={'FF','FR','BR','BB','LL','BL','FL','RR';...
             'wt','het','fx','wt','wt','wt','het','wt';...
             'm', 'f', 'm', 'm', 'f', 'm', 'f', 'm';...
@@ -94,6 +101,7 @@ for i=1:height(cohort2_full)
      cohort2_full.ratNumber(i)=lookuptable(4,tablematch);  
      cohort2_full.cohort(i)=2;
 end
+
         
 
 %%
@@ -117,6 +125,6 @@ cohort1_full.Day=str2double(cohort1_full.Day);
 cohortfull=[cohort1_full; cohort2_full];
 cohortfull(isnan(cohortfull.CallLengths),:)=[];
 cohortfull.ratNumber=str2double(cohortfull.ratNumber);
-
+%}
 
         
