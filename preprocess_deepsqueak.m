@@ -41,7 +41,8 @@ for i=1:length(allRecordings)
     allRecordings(i).meanFreqSTD=nanmean(allRecordings(i).datatable.FrequencyStandardDeviationkHz);
     allRecordings(i).meanPowerdBHz=nanmean(allRecordings(i).datatable.MeanPowerdBHz);
     allRecordings(i).meanTonality=nanmean(allRecordings(i).datatable.Tonality);
-    end
+    allRecordings(i).callRate=height(allRecordings(i).datatable)/180;
+end
 
 
 allRecs=struct2table(allRecordings);
