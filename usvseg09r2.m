@@ -1251,6 +1251,7 @@ sigma = fwhm/2.35;
 thresh = sigma*threshval;
 
 % ////////////////////////////////////////////////////////////////////////
+% mtsp=multitaper spectrogram, med=median amp at each freq
 function [fltnd,med] = flattening(mtsp,med)
 % generate flattned spectrogram
 if nargin<2
@@ -1271,6 +1272,7 @@ if isempty(med)
 end
 liftmed = liftered-repmat(med,1,size(liftered,2));
 % 5-point median filter on frequency axis
+% basically do a moving median of the median
 if exist('movmedian')==2
     fltnd = movmedian(liftmed,5);
 else % for R2015b or earlier
