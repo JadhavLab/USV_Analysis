@@ -38,7 +38,7 @@ if (any(indx_params==1))
     mycolormap=parula(length(subj_names));
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.day==int2str(day);
+        indexes = cohortfull.day==day;
         subT = cohortfull(indexes,:);               %Subtable containg only day k's data
 
         for n=1:length(subj_names)
@@ -111,7 +111,7 @@ if (any(indx_params==2))
 
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.day==int2str(day);
+        indexes = cohortfull.day==day;
         subT = cohortfull(indexes,:);
 
         m_duration(end+1) = mean(subT.CallLengths);
@@ -146,9 +146,9 @@ if (any(indx_params==2))
         
     % Plot individual and overall means by day, with error bar
     if (any(indx_analysis==3))
-        figure(20); hold on;
+        figure; hold on;
         errorbar(daily_subject_means_duration,se_duration,'k-','LineWidth',1)
-        plotSpread(subj_means_duration)
+        %plotSpread(subj_means_duration)
         %plot(daily_subject_means,'k-','LineWidth',1)
         box off; zoom out;
         xticklabels([start_day:interval:end_day]);
@@ -189,7 +189,7 @@ if (any(indx_params==3))
 
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.day==int2str(day);
+        indexes = cohortfull.day==day;
         subT = cohortfull(indexes,:);
 
         m_principal(end+1) = mean(subT.PrincipalFrequencykHz);
@@ -243,7 +243,7 @@ if (any(indx_params==3))
     if (any(indx_analysis==3))
         figure(30); hold on;
         errorbar(daily_subject_means_principal,se_principal,'k-','LineWidth',1)
-        plotSpread(subj_means_principal)
+        %plotSpread(subj_means_principal)
         %plot(daily_subject_means,'k-','LineWidth',1)
         box off; zoom out;
         xticklabels([start_day:interval:end_day]);
@@ -373,7 +373,7 @@ if (any(indx_params==5))
 
     for k=1:n_days
         day = (start_day-interval)+(k*interval);
-        indexes = cohortfull.day==int2str(day);
+        indexes = cohortfull.day==day;
         subT = cohortfull(indexes,:);
 
         m_tonality(end+1) = mean(subT.Tonality);
@@ -410,12 +410,12 @@ if (any(indx_params==5))
     if (any(indx_analysis==3))
         figure(50); hold on;
         errorbar(daily_subject_means,se_tonality,'k-','LineWidth',1)
-        plotSpread(subj_means_tonality)
+        %plotSpread(subj_means_tonality)
         %plot(daily_subject_means,'k-','LineWidth',1)
         box off; zoom out;
         title('Tonality');
         xlabel('Postnatal Day');
-        ylabel('Mean subject USV tonality (dB/kHz)');
+        ylabel(sprintf('Mean subject \n USV tonality (dB/kHz)'));
         xticklabels([start_day:interval:end_day]);
     end
         

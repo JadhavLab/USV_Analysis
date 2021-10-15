@@ -1,10 +1,10 @@
 
-
+load('T')
 %% make variables better
-cohortfull.day=str2double(cohortfull.day);
-cohortfull.ratNumber=str2double(cohortfull.ratNumber);
+cohortfull.day=str2double(cohortfull.Day);
 
-
+[subj_names,b,c] = unique(cohortfull.ratID);
+cohortfull.ratNumber=c;
 %% Get basic info about testing days, number of subjects, etc.
 
 info = inputdlg(["Start day","Interval","End day"], 'double');
