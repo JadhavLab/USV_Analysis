@@ -74,10 +74,28 @@ edit removeSoftCalls
 try
     load('USVmetadata.mat');
 catch
-    edit USVmetadataAggregator 
+    edit USVmetaAggregator 
 end
 
 edit mergeMetaCalls
+
+%% just curious about weight
+weightmat={}; allweights={};
+for i=1:max(USVSession.Cohort)
+    uniquedays=unique(USVSession.Age(USVSession.Cohort==i));
+    allweights{i}=uniquedays;
+    for j=1:length(uniquedays)
+        weightmat{i}(:,j)=USVSession.Weight(USVSession.Cohort==i & USVSession.Age==uniquedays(j));
+    end
+end
+figure;
+for i=1:length(weightmat)
+    errorbar(allweights{i},nanmean(weightmat{i}),nanstd(weightmat{i}));
+    hold on;
+    keyboard
+end
+% it appears that cohort 5 is older than reported...
+
 %% input data for the clustering algorithms
 %{
 First, lets understand the unput data that DeepSqueak uses

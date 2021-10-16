@@ -3,7 +3,7 @@
 %% so first you need to load the metadata, and then you need to designate
 % the call folder
 
-load('C:\Users\Jadhavlab\Downloads\USVmetadata.mat');
+load('C:\Users\Jadhavlab\Downloads\USVmetadata2021-10-15.mat');
 
 callFolder='G:\USV data\Detections';
 allCallFiles=cellfun(@(a) string(a), getAllFiles(callFolder,'.mat'));

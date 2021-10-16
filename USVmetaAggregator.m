@@ -79,32 +79,25 @@ for i=1:height(USVSession)
     unders=find(myfilename=='_' | myfilename=='-');
     USVSession.Cohort(i)=str2double(myfilename(2:unders(1)-1)); % cohort
     USVSession.Age(i)=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
-    % generate horizontal string array with all possible names
-    myname=unique([myfilename(unders(2)+1:end)  USVSession.XFName(i) ...
-        USVSession.OtherID(i) USVSession.Animal(i)]);
-    myname(myname=="")=[];
+    % pull rat name from file name
+    myname=myfilename(unders(2)+1:end);
+    
     % now match this to what we have, has to be animal name and correct
     % cohort
-    mymatch=find((sum(myname==USVSummary.Animal,2)>0 |...
-        sum(myname==USVSummary.ToeMarkings,2)>0 | ...
-        sum(myname==USVSummary.LegMarkings,2)>0 | ...
-        sum(myname==lower(USVSummary.ToeMarkings),2)>0) & ...
+    mymatch=find(sum(myname==USVSummary{:,[2 5 6 7]},2) &...
         USVSummary.Cohort==USVSession.Cohort(i));
-    if length(mymatch)==1
-        % then we found the match
-        USVSession.Genotype(i)=USVSummary.Genotype(mymatch);
-        USVSession.Sex(i)=USVSummary.Sex(mymatch);
-        USVSession.Alias{i}=myname;
-        USVSession.XFName(i)=USVSummary.Animal(mymatch);
-    else
-        mymatch=input(strjoin(['Rat' myname ' in cohort' USVSession.Cohort(i) ...
-            'has no match, which row is it?']));
-        % then we found the match
-        USVSession.Genotype(i)=USVSummary.Genotype(mymatch);
-        USVSession.Sex(i)=USVSummary.Sex(mymatch);
-        USVSession.Alias(i)=myname;
-        USVSession.XFName(i)=USVSummary.Animal(mymatch);
+    if length(mymatch)~=1
+        mymatch=input(['Rat' myname ' in cohort ' num2str(USVSession.Cohort(i)) ...
+            ' has no match, which row is it?']);
     end
+    % then we found the match
+    USVSession.Genotype(i)=USVSummary.Genotype(mymatch);
+    USVSession.Sex(i)=USVSummary.Sex(mymatch);
+    myalias=USVSummary{mymatch,[2 5 6 7]};
+    myalias(myalias=="")=[];
+    USVSession.Alias{i}=myalias;
+    USVSession.XFName(i)=USVSummary.Animal(mymatch);
+    
 end
         
     
