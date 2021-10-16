@@ -71,7 +71,13 @@ segment usvs, dont fuck with it, it should just work.
 
 edit removeSoftCalls
 
+try
+    load('USVmetadata.mat');
+catch
+    edit USVmetadataAggregator 
+end
 
+edit mergeMetaCalls
 %% input data for the clustering algorithms
 %{
 First, lets understand the unput data that DeepSqueak uses

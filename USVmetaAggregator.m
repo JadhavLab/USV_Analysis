@@ -95,6 +95,7 @@ for i=1:height(USVSession)
         USVSession.Genotype(i)=USVSummary.Genotype(mymatch);
         USVSession.Sex(i)=USVSummary.Sex(mymatch);
         USVSession.Alias{i}=myname;
+        USVSession.XFName(i)=USVSummary.Animal(mymatch);
     else
         mymatch=input(strjoin(['Rat' myname ' in cohort' USVSession.Cohort(i) ...
             'has no match, which row is it?']));
@@ -102,6 +103,7 @@ for i=1:height(USVSession)
         USVSession.Genotype(i)=USVSummary.Genotype(mymatch);
         USVSession.Sex(i)=USVSummary.Sex(mymatch);
         USVSession.Alias(i)=myname;
+        USVSession.XFName(i)=USVSummary.Animal(mymatch);
     end
 end
         

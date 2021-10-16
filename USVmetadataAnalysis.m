@@ -1,5 +1,8 @@
+%% these data come from a webpage that you must download, heres the page
 
+web('https://docs.google.com/spreadsheets/d/1NQK8Sv2n_1EUyIOZScPLmUXlLDKu54r3QYa5IO0BRcE/edit#gid=1940592088');
 
+% then download the whole doc, and then use that to pull the below
 %% Set up the Import Options and import the data
 opts = spreadsheetImportOptions("NumVariables", 7);
 
