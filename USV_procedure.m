@@ -95,6 +95,11 @@ for i=1:length(weightmat)
     keyboard
 end
 % it appears that cohort 5 is older than reported...
+%%
+
+load('C:\Users\John Bladon\Desktop\USVdataFULL2021-10-15.mat');
+% this is what deepsqueak gives me to work with...
+
 
 %% input data for the clustering algorithms
 %{
