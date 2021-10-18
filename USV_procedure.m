@@ -72,7 +72,7 @@ segment usvs, dont fuck with it, it should just work.
 edit removeSoftCalls
 
 try
-    load('USVmetadata.mat');
+    load('USVmetadata2021-10-15.mat');
 catch
     edit USVmetaAggregator 
 end
