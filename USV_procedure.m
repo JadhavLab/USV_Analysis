@@ -81,7 +81,7 @@ edit mergeMetaCalls
 
 %% just curious about weight
 weightmat={}; allweights={};
-for i=1:max(USVSession.Cohort)
+for i=1:5 %max(USVSession.Cohort)
     uniquedays=unique(USVSession.Age(USVSession.Cohort==i));
     allweights{i}=uniquedays;
     for j=1:length(uniquedays)
@@ -105,9 +105,10 @@ load('C:\Users\John Bladon\Desktop\USVdataFULL2021-10-15.mat');
 
 %% now that we have a datatable, lets see what falls out
 % first lets plot everything by sex/genotype and time
-oktouse=find(cellfun(@(a) ~isempty(a), USVSession.CallStats(:)));
+oktouse=cellfun(@(a) ~isempty(a), USVSession.CallStats(:)) & ...
+    USVSession.Cohort~=6;
 useSession=USVSession(oktouse,:);
-allstats=useSession.CallStats{oktouse(1)}.Properties.VariableNames;
+allstats=useSession.CallStats{1}.Properties.VariableNames;
 %usestats=allstats(checkBox(allstats,'Choose the stats you want to see'));
 usestats=allstats(7:17); %just use all these ones...
 % for each usestat
