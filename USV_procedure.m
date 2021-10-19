@@ -89,13 +89,14 @@ for i=1:max(USVSession.Cohort)
     end
 end
 figure;
+temp={1,2,3,4,5,6}; cohortnames=cellfun(@(a) {['Cohort ' num2str(a)]}, temp);
 clear eb;
 for i=1:length(weightmat)
     eb(i)=errorbar(allweights{i},nanmean(weightmat{i}),nanstd(weightmat{i}));
     hold on;
 end
 xlabel('Age pnd'); ylabel('Weight, gm')
-legend(eb)
+legend(eb,cohortnames)
 % it appears that cohort 5 is older than reported...
 %%
 
@@ -159,8 +160,8 @@ linkaxes(sp,'x'); xlim([3 21]);
 %% now plot these against weight
 % are fx animals heavier than their counterparts?
 
-figure; sp=subplot(1,3,1);
-
+figure;
+clear eb
 for gt=1:4 % 4 genotypes
     daymean=accumarray(useSession.Age(idx==gt),useSession.Weight(idx==gt),[],@nanmean,nan);
     daydev=accumarray(useSession.Age(idx==gt),useSession.Weight(idx==gt),[],@nanstd,nan);
@@ -169,7 +170,8 @@ for gt=1:4 % 4 genotypes
         'Color',gtcolors(gt,:));
     hold on;
 end
-linkaxes(sp,'x'); xlim([3 21]);
+ xlim([3 21]);
+legend(eb,genonames);
 ylabel('Weight, gms'); xlabel('Age, pnd');
 
 % lets see if this is real
@@ -186,9 +188,11 @@ allcalls=cellfun(@(a) a.Label, useSession.CallStats(:), 'UniformOutput', false);
 everycall=cell2mat(cellfun(@(a) str2double(a), allcalls, 'UniformOutput', false));
 everycall(isnan(everycall))=26; % there are 26 types of call (26 is unidentified)
 uniquecalls=unique(everycall);
-for i=1:length(uniquecalls)
+savedir='E:\Brandeis datasets\FMR1 Project Data\USV data\Figs 2021-10-18';
+goodcalls=[2 4 5 6 7 8 9 16 17 18];
+for i=1:length(goodcalls)
     figure;
-    mystat=cellfun(@(a) mean(str2double(a.Label)==i,'omitnan'),useSession.CallStats(:));
+    mystat=cellfun(@(a) mean(str2double(a.Label)==goodcalls(i),'omitnan'),useSession.CallStats(:));
     %sp=subplot(3,4,i+1);
     for gt=1:4 % 4 genotypes
         daymean=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@nanmean,nan);
@@ -200,9 +204,11 @@ for i=1:length(uniquecalls)
     end
     % pull out random images for those clusters
     %sp(2)=
-    xlabel('Postnatal Age');
-    title(sprintf('call %d',i));
+    xlabel('Postnatal Age'); ylabel('likelihood of call ID#');
+    box off; title(sprintf('call %d',goodcalls(i)));
     legend(eb,genonames)
+    saveas(gcf,fullfile(savedir,sprintf('callnumber_%d',goodcalls(i))),'png');
+    close(gcf);
 end
 
 %% howabout call bouts
@@ -267,20 +273,23 @@ legend(eb,genonames)
 
 
 %% plot certain characteristics against eachother
-
+useSession=USVSession(lower(USVSession.Sex)=='m'& ...
+    cellfun(@(a) ~isempty(a), USVSession.CallStats(:)) ,:);
 [alldays,~,dayind]=unique(useSession.Age);
 daycolor=parula(length(alldays));
 daycolor=daycolor(dayind,:);
 
+[genotypes,~,idx]=unique(useSession.Genotype);
+genonames={'fx M','wt M'};
+gtcolors=lines(2);
 genocolor=gtcolors(idx,:);
 
-Param1='CallLengths';
-Param2='Sinuosity';
+
 
 
 usestats=allstats(7:17); %just use all these ones...
 for i=1:length(usestats)-1
-    for j=i:length(usestats)
+    for j=i+1:length(usestats)
         Param1=usestats{i};
         Param2=usestats{j};
         mystat=cellfun(@(a) mean(a.(Param1),'omitnan'),useSession.CallStats(:));
@@ -293,32 +302,13 @@ for i=1:length(usestats)-1
         sp(2)=subplot(1,2,2);
         scatter(mystat,mystat2,5,genocolor,'filled');
         xlabel(Param1); ylabel(Param2);
-        cb=colorbar('TickLabels',genonames,'Ticks',0.002:0.004:0.014);
-        cb.Label.String='Day'; cb.Limits=[0,0.0156];
+        cb=colorbar('TickLabels',genonames(1:2),'Ticks',[.002 .006]);
+        cb.Label.String='Genotype'; cb.Limits=[0,0.007];
         colormap(gca,'lines')
         linkaxes(sp);
     end
 end
  % do this but just plot males to see
-        
-        
-        
-mystat=cellfun(@(a) mean(a.(Param1),'omitnan'),useSession.CallStats(:));
-mystat2=cellfun(@(a) mean(a.(Param2),'omitnan'),useSession.CallStats(:));
-figure;
-sp=subplot(1,2,1);
-scatter(mystat,mystat2,5,daycolor,'filled');
-xlabel(Param1); ylabel(Param2);
-cb=colorbar('Ticks',linspace(0,1,8),'TickLabels',4:2:20); cb.Label.String='Day';
-sp(2)=subplot(1,2,2);
-scatter(mystat,mystat2,5,genocolor,'filled');
-xlabel(Param1); ylabel(Param2);
-cb=colorbar('TickLabels',genonames,'Ticks',0.002:0.004:0.014);
-cb.Label.String='Day'; cb.Limits=[0,0.0156];
-colormap(gca,'lines')
-linkaxes(sp);
-
-
 
 %%
 
