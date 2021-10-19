@@ -89,16 +89,238 @@ for i=1:max(USVSession.Cohort)
     end
 end
 figure;
+clear eb;
 for i=1:length(weightmat)
-    errorbar(allweights{i},nanmean(weightmat{i}),nanstd(weightmat{i}));
+    eb(i)=errorbar(allweights{i},nanmean(weightmat{i}),nanstd(weightmat{i}));
     hold on;
-    keyboard
 end
+xlabel('Age pnd'); ylabel('Weight, gm')
+legend(eb)
 % it appears that cohort 5 is older than reported...
 %%
 
 load('C:\Users\John Bladon\Desktop\USVdataFULL2021-10-15.mat');
 % this is what deepsqueak gives me to work with...
+
+%% now that we have a datatable, lets see what falls out
+% first lets plot everything by sex/genotype and time
+oktouse=find(cellfun(@(a) ~isempty(a), USVSession.CallStats(:)));
+useSession=USVSession(oktouse,:);
+allstats=useSession.CallStats{oktouse(1)}.Properties.VariableNames;
+%usestats=allstats(checkBox(allstats,'Choose the stats you want to see'));
+usestats=allstats(7:17); %just use all these ones...
+% for each usestat
+% for each session
+% gather the average stat
+% errorbar for each genotype
+% back color plot for each cohort of that genotype
+
+[genotypes,~,idx]=unique(useSession(:,{'Sex','Genotype'}),'rows');
+genonames={'het F','wt F','fx M','wt M'};
+gtcolors=lines(4);
+
+mystat=cellfun(@(a) height(a),useSession.CallStats(:));
+figure; 
+sp=subplot(3,4,1);
+clear eb
+% this is call counts
+for gt=1:4 % 4 genotypes
+    daymean=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@mean,nan);
+    daydev=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@std,nan);
+    alldays=unique(useSession.Age(idx==gt));
+    eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        'Color',gtcolors(gt,:));
+    hold on;
+end
+xlabel('Postnatal Age');
+title(sprintf('Num calls'));
+legend(eb,genonames)
+% this is all the other parameters
+for i=1:length(usestats)
+    mystat=cellfun(@(a) mean(a.(usestats{i}),'omitnan'),useSession.CallStats(:));
+    sp(i+1)=subplot(3,4,i+1);
+    for gt=1:4 % 4 genotypes
+        daymean=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@mean,nan);
+        daydev=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@std,nan);
+        alldays=unique(useSession.Age(idx==gt));
+        eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+            'Color',gtcolors(gt,:));
+        hold on;
+    end
+    xlabel('Postnatal Age'); ylabel(sprintf('Mean %s',usestats{i}));
+    title(sprintf('Mean %s',usestats{i}));
+    legend(eb,genonames)
+end
+
+linkaxes(sp,'x'); xlim([3 21]);
+
+% now for the call type analysis, which I think will pull something out
+% here
+%% now plot these against weight
+% are fx animals heavier than their counterparts?
+
+figure; sp=subplot(1,3,1);
+
+for gt=1:4 % 4 genotypes
+    daymean=accumarray(useSession.Age(idx==gt),useSession.Weight(idx==gt),[],@nanmean,nan);
+    daydev=accumarray(useSession.Age(idx==gt),useSession.Weight(idx==gt),[],@nanstd,nan);
+    alldays=unique(useSession.Age(idx==gt));
+    eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        'Color',gtcolors(gt,:));
+    hold on;
+end
+linkaxes(sp,'x'); xlim([3 21]);
+ylabel('Weight, gms'); xlabel('Age, pnd');
+
+% lets see if this is real
+[p,tbl,stats]=anovan(useSession.Weight,{useSession.Age, idx},'continuous',1,...
+    'varnames',{'Age','Genotype'},'model','full');
+
+[p,tbl,stats]=anovan(useSession.Weight,{useSession.Age, idx==3},'continuous',1,...
+    'varnames',{'Age','Genotype'});
+
+
+%% so I think we should plot the p(call) for each call type for each animal
+
+allcalls=cellfun(@(a) a.Label, useSession.CallStats(:), 'UniformOutput', false);
+everycall=cell2mat(cellfun(@(a) str2double(a), allcalls, 'UniformOutput', false));
+everycall(isnan(everycall))=26; % there are 26 types of call (26 is unidentified)
+uniquecalls=unique(everycall);
+for i=1:length(uniquecalls)
+    figure;
+    mystat=cellfun(@(a) mean(str2double(a.Label)==i,'omitnan'),useSession.CallStats(:));
+    %sp=subplot(3,4,i+1);
+    for gt=1:4 % 4 genotypes
+        daymean=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@nanmean,nan);
+        daydev=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@nanstd,nan);
+        alldays=find(~isnan(daymean));
+        eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+            'Color',gtcolors(gt,:));
+        hold on;
+    end
+    % pull out random images for those clusters
+    %sp(2)=
+    xlabel('Postnatal Age');
+    title(sprintf('call %d',i));
+    legend(eb,genonames)
+end
+
+%% howabout call bouts
+
+% where is the peak in the i-c-i histogram?
+% two ways of doing this: create a sparse mat and xcorr it
+% or histogram the ISIs
+
+% maybe the peak of that isi histogram?
+xedges=0:.005:.4;
+xcenters=mean([xedges(1:end-1); xedges(2:end)]);
+isiPeak=[];
+callDurPeak=[];
+wb=waitbar(0,'starting');
+for i=1:height(useSession)
+    allISI=diff([useSession.CallStats{i}.EndTimes(1:end-1) useSession.CallStats{i}.BeginTimes(2:end)],1,2);
+    [y,x]=histcounts(allISI,0:.005:.4);
+    [~,peakind]=max(y); isiPeak(i)=xcenters(peakind);
+    [y,x]=histcounts(useSession.CallStats{i}.CallLengths,xedges);
+    [~,peakind]=max(y); callDurPeak(i)=xcenters(peakind);
+    waitbar(i/height(useSession),wb,'running now');
+end
+close(wb)
+figure;
+%sp=subplot(3,4,i+1);
+for gt=1:4 % 4 genotypes
+    daymean=accumarray(useSession.Age(idx==gt),isiPeak(idx==gt),[],@nanmean,nan);
+    daydev=accumarray(useSession.Age(idx==gt),isiPeak(idx==gt),[],@nanstd,nan);
+    alldays=find(~isnan(daymean));
+    eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        'Color',gtcolors(gt,:));
+    hold on;
+end
+xlabel('Postnatal Age');
+ylabel('Peak inter-call-interval, seconds')
+legend(eb,genonames)
+
+% how many calls are within say 100 msec of eachother?
+figure;
+%sp=subplot(3,4,i+1);
+for gt=1:4 % 4 genotypes
+    daymean=accumarray(useSession.Age(idx==gt),callDurPeak(idx==gt),[],@nanmean,nan);
+    daydev=accumarray(useSession.Age(idx==gt),callDurPeak(idx==gt),[],@nanstd,nan);
+    alldays=find(~isnan(daymean));
+    eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        'Color',gtcolors(gt,:));
+    hold on;
+end
+xlabel('Postnatal Age');
+ylabel('Call Length Mode, seconds')
+legend(eb,genonames)
+
+
+% ncalls within n milliseconds
+
+% 
+
+%% cluster early day animals, cluster late day animals
+
+
+
+
+
+%% plot certain characteristics against eachother
+
+[alldays,~,dayind]=unique(useSession.Age);
+daycolor=parula(length(alldays));
+daycolor=daycolor(dayind,:);
+
+genocolor=gtcolors(idx,:);
+
+Param1='CallLengths';
+Param2='Sinuosity';
+
+
+usestats=allstats(7:17); %just use all these ones...
+for i=1:length(usestats)-1
+    for j=i:length(usestats)
+        Param1=usestats{i};
+        Param2=usestats{j};
+        mystat=cellfun(@(a) mean(a.(Param1),'omitnan'),useSession.CallStats(:));
+        mystat2=cellfun(@(a) mean(a.(Param2),'omitnan'),useSession.CallStats(:));
+        figure;
+        sp=subplot(1,2,1);
+        scatter(mystat,mystat2,5,daycolor,'filled');
+        xlabel(Param1); ylabel(Param2);
+        cb=colorbar('Ticks',linspace(0,1,8),'TickLabels',4:2:20); cb.Label.String='Day';
+        sp(2)=subplot(1,2,2);
+        scatter(mystat,mystat2,5,genocolor,'filled');
+        xlabel(Param1); ylabel(Param2);
+        cb=colorbar('TickLabels',genonames,'Ticks',0.002:0.004:0.014);
+        cb.Label.String='Day'; cb.Limits=[0,0.0156];
+        colormap(gca,'lines')
+        linkaxes(sp);
+    end
+end
+ % do this but just plot males to see
+        
+        
+        
+mystat=cellfun(@(a) mean(a.(Param1),'omitnan'),useSession.CallStats(:));
+mystat2=cellfun(@(a) mean(a.(Param2),'omitnan'),useSession.CallStats(:));
+figure;
+sp=subplot(1,2,1);
+scatter(mystat,mystat2,5,daycolor,'filled');
+xlabel(Param1); ylabel(Param2);
+cb=colorbar('Ticks',linspace(0,1,8),'TickLabels',4:2:20); cb.Label.String='Day';
+sp(2)=subplot(1,2,2);
+scatter(mystat,mystat2,5,genocolor,'filled');
+xlabel(Param1); ylabel(Param2);
+cb=colorbar('TickLabels',genonames,'Ticks',0.002:0.004:0.014);
+cb.Label.String='Day'; cb.Limits=[0,0.0156];
+colormap(gca,'lines')
+linkaxes(sp);
+
+
+
+%%
 
 
 %% input data for the clustering algorithms
