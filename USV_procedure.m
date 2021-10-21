@@ -79,6 +79,8 @@ end
 
 edit mergeMetaCalls
 
+edit ClusterCalls
+
 %% just curious about weight
 weightmat={}; allweights={};
 for i=1:5 %max(USVSession.Cohort)
@@ -176,8 +178,8 @@ legend(eb,genonames);
 ylabel('Weight, gms'); xlabel('Age, pnd');
 
 % lets see if this is real
-[p,tbl,stats]=anovan(useSession.Weight,{useSession.Age, idx},'continuous',1,...
-    'varnames',{'Age','Genotype'},'model','full');
+%[p,tbl,stats]=anovan(useSession.Weight,{useSession.Age, idx},'continuous',1,...
+%    'varnames',{'Age','Genotype'},'model','full');
 
 [p,tbl,stats]=anovan(useSession.Weight,{useSession.Age, idx==3},'continuous',1,...
     'varnames',{'Age','Genotype'});
@@ -197,9 +199,9 @@ for i=1:length(goodcalls)
     %sp=subplot(3,4,i+1);
     for gt=1:4 % 4 genotypes
         daymean=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@nanmean,nan);
-        daydev=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@nanstd,nan);
+        daydev=accumarray(useSession.Age(idx==gt),mystat(idx==gt),[],@SEM,nan);
         alldays=find(~isnan(daymean));
-        eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        eb(gt)=errorbar(alldays+rand*.5-.25,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
             'Color',gtcolors(gt,:));
         hold on;
     end
@@ -207,9 +209,9 @@ for i=1:length(goodcalls)
     %sp(2)=
     xlabel('Postnatal Age'); ylabel('likelihood of call ID#');
     box off; title(sprintf('call %d',goodcalls(i)));
-    legend(eb,genonames)
-    saveas(gcf,fullfile(savedir,sprintf('callnumber_%d',goodcalls(i))),'png');
-    close(gcf);
+    legend(eb,genonames); xlim([3 21]);
+    %saveas(gcf,fullfile(savedir,sprintf('callnumber_%d',goodcalls(i))),'png');
+    %close(gcf);
 end
 
 %% howabout call bouts
@@ -223,6 +225,7 @@ xedges=0:.005:.4;
 xcenters=mean([xedges(1:end-1); xedges(2:end)]);
 isiPeak=[];
 callDurPeak=[];
+burstprob=[];
 wb=waitbar(0,'starting');
 for i=1:height(useSession)
     allISI=diff([useSession.CallStats{i}.EndTimes(1:end-1) useSession.CallStats{i}.BeginTimes(2:end)],1,2);
@@ -230,6 +233,7 @@ for i=1:height(useSession)
     [~,peakind]=max(y); isiPeak(i)=xcenters(peakind);
     [y,x]=histcounts(useSession.CallStats{i}.CallLengths,xedges);
     [~,peakind]=max(y); callDurPeak(i)=xcenters(peakind);
+    burstprob(i)=nanmean(allISI<.2);
     waitbar(i/height(useSession),wb,'running now');
 end
 close(wb)
@@ -264,7 +268,19 @@ legend(eb,genonames)
 
 
 % ncalls within n milliseconds
-
+figure;
+%sp=subplot(3,4,i+1);
+for gt=1:4 % 4 genotypes
+    daymean=accumarray(useSession.Age(idx==gt),burstprob(idx==gt),[],@nanmean,nan);
+    daydev=accumarray(useSession.Age(idx==gt),burstprob(idx==gt),[],@nanstd,nan);
+    alldays=find(~isnan(daymean));
+    eb(gt)=errorbar(alldays,daymean(~isnan(daymean)),daydev(~isnan(daydev)),...
+        'Color',gtcolors(gt,:));
+    hold on;
+end
+xlabel('Postnatal Age');
+ylabel('Call Bout Probability, seconds')
+legend(eb,genonames)
 % 
 
 %% cluster early day animals, cluster late day animals

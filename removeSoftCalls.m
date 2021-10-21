@@ -5,7 +5,7 @@
 %%%% reject calls that are too soft %%%%%%%%%
 
 % first import a tool file
-load('G:\USV data\Detections\C1_P6_1BL 2021-10-07  1_56 PM.mat');
+load('G:\USV data\Detections\C3-P20-T8 2021-10-07  3_26 PM.mat');
 % variables are audiodata, Calls, detection_metadata
 
 % audiodata is how to get the data...
@@ -27,17 +27,28 @@ span=1:10000;
 % get the abs value for amplitude
 spect.samp=log(abs(spect.raw));
 % adjust an image
-spectmedian=mean(spect.samp,2);
+spectmedian=median(spect.samp,2);
 spectspread=std(spect.samp,[],2);
-spect.squeakim=SmoothMat2(spect.samp(:,span)-spectmedian,[10 10],2);
 
-% now get median and STD
+% zscore the image
+spect.squeakim=SmoothMat2((spect.samp(:,span)-spectmedian)./spectspread,[10 10],2);
+
 figure; 
-sp=subplot(2,2,1);
+sp=subplot(4,1,1);
 imagesc(t(span),f,spect.squeakim);
 set(gca,'Ydir','normal','CLim',[-1 2],'YLim',[20000,100000]);
-% establish a threshold
-subplot(2,2,2);
+
+% rectify, turn all below mean into mean, and then rescale
+spectim=spect.squeakim;
+for i=1:length(spectmedian)
+    spectim(i,spectim(i,:)<spectmedian(i))=spectmedian(i);
+end
+sp(2)=subplot(4,1,2);
+imagesc(t(span),f,rescale(spectim));
+set(gca,'Ydir','normal','CLim',[.2 .8],'YLim',[20000,100000]);
+linkaxes(sp);
+% DO we want to rescale
+subplot(4,1,3);
 plot(f,spectmedian);
 yyaxis right; semilogy(f,spectspread);
 set(gca,'Xlim',[20000,100000])
@@ -54,6 +65,16 @@ set(gca,'XScale','log');
 hold on; plot(repmat(mean(spectmedian+2*mean(spectspread)),1,2),[0 1]);
 
 linkaxes(sp,'x','y');
+
+%% i want to see the histogram of each frequency
+y=[];
+edges=-1:.1:3;
+centbins=edges(1:end-1)-mean(diff(edges));
+for i=1:length(f)
+    [y(i,:),x]=histcounts(spectim(i,:),edges);
+end
+figure; imagesc(f,centbins,y'); set(gca,'Ydir','normal')
+    
 
 %%
 
