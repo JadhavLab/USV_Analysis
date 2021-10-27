@@ -19,7 +19,7 @@ global gv;
 if nargin==0
     % version
     usevsegver = 'USVSEG ver 0.9 (rev 2)';
-    fftsize = 512;
+    fftsize = 1024;
     % load parameters
     prmfile = [fileparts(mfilename('fullpath')) filesep 'usvseg_prm.mat'];
     if exist(prmfile)==2, l=load(prmfile); gv.prm = l.prm;
@@ -381,12 +381,16 @@ if strcmp(action,'fldr')
         [~,prefix,~] = fileparts(fns{f});
         sfn = [prefix '_dat.csv'];
         savefp = [pth filesep sfn];
+        % if we already did this, continue
+        if exist(savefp,'file'), continue; end
         fid = fopen(savefp,'wt');
         fprintf(fid,'#,start,end,duration,maxfreq,maxamp,meanfreq,cvfreq\n');
         fclose(fid);
         % segmentation setting
+        %{
         mkdir(pth,prefix);
         outp = [pth filesep prefix];
+        %}
         % start
         prevn = 0;
         prevlast = 0;
@@ -433,6 +437,7 @@ if strcmp(action,'fldr')
             end
             fclose(fid);
             % segmentation
+            %{
             if fltflg==1, inputimg = fltnd; imrng = fltndimrng;
             else,         inputimg = mtsp;   imrng = mtsimrng; end
             segfun(prevn+1,outp,prefix,inputimg,imrng,wav,fs,timestep,margin,onoffset,rtvec,amptrace,freqtrace,wavflg,imgflg,trcflg);
@@ -446,7 +451,8 @@ if strcmp(action,'fldr')
                 end
             else
                 prevlast = rng(2);
-            end        
+            end  
+            %}
         end
     end
     msgbox('Done!');
@@ -894,7 +900,7 @@ margin = params.margin;
 freqmin = params.freqmin;
 freqmax = params.freqmax;
 % multitaper spec
-mtsp = multitaperspec(wav,fs,fftsize,timestep,1);
+mtsp = multitaperspec(wav,fs,fftsize,timestep,0);
 % flattening
 [fltnd,med] = flattening(mtsp,med);
 % threshold calculation with n*sigma (SD) of background noise 

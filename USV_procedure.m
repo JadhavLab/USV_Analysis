@@ -4,13 +4,27 @@ This is the analysis sketchpad of the usv data from start to finish
  functions or other scripts if they become useful.
 
 the preprocessing pipeline was as follows:
+1. DeepSqueak:
 -data were acquired, see acquisition protocol
 -a systematically random selection of files were pulled and manually
 curated for training data.
 -a network was built on those calls using DeepSqueak v 3.0.1
 -the full detection algorithm was then performed on the full gambit of data
 using both the rat detector yolo r1 and rat detector JHB networks together
--a post-hoc denoiser was then applied to ALL FILES
+-a home made denoiser was then applied to ALL FILES
+
+2. using USVseg, the problem basically is that they fucked up the
+multitaper spectrogram, so it doesnt work... its possible that we could use
+chronux bit i havent tried.  I am rather convincec that multitaper isnt
+really useful unless you have a lot of noise, so im willing ot kill it for
+now
+-so I would hack off USVSeg into my own pipeline, run all the files,
+instead of spitting out a csv, i can add them in their own table to the
+struct, and go from there.
+
+The idea would be to okay all usvs that get caught by both, maybe using the
+fattest window first, and then those that only get caught by one, i'd have
+to peek and see what tehy miss.
 
 Manual edits:
 First some observations:
@@ -20,7 +34,7 @@ loud bits outside the box
 
 - The contour isnt quite right sometimes, need to check how they threshold
 to get a contour.
-    The contour math:
+    The contour math uf deepsqueak:
     -they use a conjunctive approach.  they need at least 6 x coords in
     which... both the entropy (geomean/mean)>a threshold) and the loudness
     threshold are used. Loudness threshold=.825 and entropy is .215.. then
@@ -51,6 +65,8 @@ we need to combine boxes or expand boxes.
 3. use uvseg to gather the principal contour(s) and analyze those for
 frequency- maybe look at principal frequencie(s) using a findpeaks method,
 and then run regressions on those lines to get pitch shifts vs slides
+* the scattoni paper has some ok math on how to identify different usvs.
+I'll have to do some work on this though.
 
 4. use a machine learning algorithm, probably using the full column to
 segment usvs, dont fuck with it, it should just work.
@@ -68,6 +84,10 @@ segment usvs, dont fuck with it, it should just work.
 % wont have.  I can probably get around this by measuring the skew (geomean
 % over mean) over say the 10,000 hz surrounding the spline.  the spline
 % also shouldnt be too scattered...
+
+% this basically takes the deepsqueak data, compares them to usvseg data,
+% and then removes calls that suck...
+edit usvsegDetect
 
 edit removeSoftCalls
 
