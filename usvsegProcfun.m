@@ -1,5 +1,6 @@
-function [spect,onoffset,onoffsetm,freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq,thresh,contflg] = usvsegProcfun(spect,params)
+function [spect,thrshd,onoffset,onoffsetm] = usvsegProcfun(spect,params)
 
+%{
 fs=params.fs;
 timestep = params.timestep;
 gapmin = params.gapmin;
@@ -8,19 +9,28 @@ durmax = params.durmax;
 margin = params.margin;
 freqmin = params.freqmin;
 freqmax = params.freqmax;
-
+fvec = params.fvec;
+%}
 
 % threshold calculation with n*sigma (SD) of background noise 
 
-thresh = estimatethresh(spect,fs,freqmin,freqmax,params.threshval);
+thresh = estimatethresh(spect,params);
 
 % thresholding, thrshd is the thresholded image
-thrshd = thresholding(spect,fs,freqmin,freqmax,thresh);
-% onset/offset detection
-[onoffset,onoffsetm,~,contflg] = detectonoffset(thrshd,fs,timestep,gapmin,durmin,durmax,margin);
-% peak tracking
-[freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq] = specpeaktracking(spect,fs,timestep,freqmin,freqmax,onoffset,margin);
+thrshd = thresholding(spect,params,thresh);
 
+
+% onset/offset detection
+[onoffset,onoffsetm] = detectonoffset(thrshd,params);
+
+% use onoffsetm for the timewindows
+
+% peak tracking, there is some power here in that it can use spectral
+% saliency.  That is a good method for determining whether the shape of the
+% wave is somethign we want to track, rather than the absolute value of a
+% number of pixels (its the relative value of those pixels to their
+% neighbors. So its basically the sinewave corr across fvals
+%[freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq] = specpeaktracking(spect,params,onoffset,params.margin);
 
 end
 
@@ -31,17 +41,17 @@ end
 % this estimates the z-threshold by using the fwhm method of the
 % distribution.  This method is better than the tail method because it will
 % ignore outliers
-function thresh = estimatethresh(fltnd,fs,freqmin,freqmax,threshval)
-fftsize = (size(fltnd,1)-1)*2;
-fnmin = floor(freqmin/fs*fftsize)+1;
-fnmax = ceil(freqmax/fs*fftsize)+1;
+function thresh = estimatethresh(fltnd,params)
+
+fnmin = max([1 find(params.fvec<params.freqmin,1,'last')]);
+fnmax = min([size(fltnd,1) find(params.fvec>params.freqmax,1,'first')]);
 cut = fltnd(fnmin:fnmax,:);
 bin = -0.05:0.1:10;
 bc = bin(1:end-1)+diff(bin)/2;
 h = histcounts(cut(:),bin);
 fwhm = bc(find(h<h(1)/2,1)-1)*2;
 sigma = fwhm/2.35;
-thresh = sigma*threshval;
+thresh = sigma*params.threshval;
 
 end
 
@@ -49,10 +59,11 @@ end
 % ////////////////////////////////////////////////////////////////////////
 % this threhsolds the sounds and also removes anythign that isnt in the
 % search frequency by using a mask
-function thrshd = thresholding(fltnd,fs,freqmin,freqmax,thresh)
-fftsize = (size(fltnd,1)-1)*2;
-fnmin = floor(freqmin/fs*fftsize)+1;
-fnmax = ceil(freqmax/fs*fftsize)+1;
+function thrshd = thresholding(fltnd,params,thresh)
+
+fnmin = find(params.fvec<params.freqmin,1,'last');
+fnmax= find(params.fvec>params.freqmax,1,'first');
+
 mask = zeros(size(fltnd));
 mask(fnmin:fnmax,:) = 1;
 thrshd = (fltnd>thresh).*mask;
@@ -66,12 +77,18 @@ end
 
 % ////////////////////////////////////////////////////////////////////////
 % this detects
-function [onoffset,onoffsetm,onoffsig,contflg] = detectonoffset(thrshd,fs,timestep,gapmin,durmin,durmax,margin,onoffthresh)
-if nargin<8
-    onoffthresh = 5; % optimized for multitaper spectrogram
-end
-fftsize = (size(thrshd,1)-1)*2;
-step = round(timestep*fs);
+function [onoffset,onoffsetm,onoffsig,contflg] = detectonoffset(thrshd,params)
+
+%fs,timestep,gapmin,durmin,durmax,margin,onoffthresh
+
+
+%onoffthresh = 5; % optimized for multitaper spectrogram.
+% I think this onoff thresh needs to be some real number...
+% just gonna say that it has to be a thousand hz across and see what that
+% assume frequencies are uniform
+onoffthresh=round(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1000);
+
+step = round(params.timestep*params.fs);
 % onset/offset detection
 onoff = max(filter(ones(onoffthresh,1),1,thrshd))'>=onoffthresh;
 
@@ -80,7 +97,7 @@ onoff = max(filter(ones(onoffthresh,1),1,thrshd))'>=onoffthresh;
 % this doesnt appear to do that.  It appears to shorten the duration of
 % each and every call...
 % 
-ndurmin = round(durmin*fs/step);
+ndurmin = round(params.durmin*params.fs/step);
 f = filter(ones(ndurmin,1)/ndurmin,1,[onoff;zeros(round(ndurmin/2),1)]);
 % you can add gap filters in...
 
@@ -108,9 +125,9 @@ contflg = monoff(end);
 
 % gap thresholding
 % if any gap between on-off pairs is too short, combine
-gap = (onidx(2:end)-offidx(1:end-1))*timestep;
+gap = (onidx(2:end)-offidx(1:end-1))*params.timestep;
 gap(end+1) = 0;
-gid = find(gap>=gapmin);
+gid = find(gap>=params.gapmin);
 if ~isempty(gid)
     onidx = [onidx(1); onidx(gid+1)];
     offidx = [offidx(gid); offidx(end)];
@@ -120,11 +137,12 @@ else
 end
 
 % syllable duration threholding
-dur = (offidx-onidx)/fs*step;
-did = find(durmin<=dur & dur<=durmax);
+dur = (offidx-onidx)/params.fs*step;
+did = find(params.durmin<=dur & dur<=params.durmax);
 onidx = onidx(did);
 offidx = offidx(did);
-tvec = ((0:(size(thrshd,2)-1))'*step+fftsize/2)/fs;
+tvec = params.tvec; % ((0:(size(thrshd,2)-1))'*step+fftsize/2)/fs;
+% convert to real time here
 onset = tvec(onidx);
 offset = tvec(offidx);
 if isempty(onset)||isempty(offset)
@@ -134,24 +152,30 @@ if isempty(onset)||isempty(offset)
     contflg = 0;
     return;
 end
-% margin addition
-onsetm = onset-margin;
-offsetm = offset+margin;
+% margin addition (onto front and back just under half the min window size)
+onsetm = onset-params.margin;
+offsetm = offset+params.margin;
 % syllables whose margins are overlapped are integrated in onoffsetm but not in onoffset
-idx = find((onsetm(2:end)-offsetm(1:end-1))>0);
-onsetI = [onset(1);onset(idx+1)];
-offsetI = [offset(idx);offset(end)];
-onsetm = onsetI-margin;
-onsetm(1) = max(1/fs*step,onsetm(1));
-offsetm = offsetI+margin;
-offsetm(end) = min(max(size(thrshd,2)*step/fs),offsetm(end));    
+idx = find((onsetm(2:end)-offsetm(1:end-1))>=0); % use only those onto which the offset is before or at next onset
+onsetI = [onset(1);onset(idx+1)']; % if they are, notch the on and offs out of the center
+offsetI = [offset(idx)';offset(end)];
+
+% now add margin
+onsetm = onsetI-params.margin;
+onsetm(1) = max(1/params.fs*step,onsetm(1)); % cant go earlier than first tic
+offsetm = offsetI+params.margin;
+offsetm(end) = min(max(size(thrshd,2)*step/params.fs),offsetm(end));     % or longer then file
 % output 
 onoffset = [onset offset];
 onoffsetm = [onsetm offsetm];
 % on/off signal
 temp = zeros(size(onoff));
-onidx2 = round((onset*fs-fftsize/2)/step+1);
-offidx2 = round((offset*fs-fftsize/2)/step+1);
+% convert back to indices, for no real reason...
+
+
+onidx2 = round((onset*params.fs)/step);
+% really not sure why hes adding to this fftsize... does he think its 
+offidx2 = round((offset*params.fs)/step+1);
 temp(onidx2) = 1;
 temp(offidx2+1) = -1;
 onoffsig = cumsum(temp); % throwaway variable, it has overlaps...
@@ -159,13 +183,14 @@ end
 
 
 % ////////////////////////////////////////////////////////////////////////
-function [freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq] = specpeaktracking(fltnd,fs,timestep,freqmin,freqmax,onoffset,margin)
+function [freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq] = specpeaktracking(fltnd,params,onoffset,margin)
 % INPUTS
 % fltnd= filtered image
 % fs- samp freq
 % timestep= timesteps
 % onoffset=
 
+% gather 4 potential splines
 if isempty(onoffset)
     freqtrace = nan(size(fltnd,2),4);
     amptrace =  nan(size(fltnd,2),4);
@@ -190,8 +215,11 @@ contmin = 10;
 ampthr = 0;
 
 nstep = size(fltnd,2);
-fnmin = floor(freqmin/fs*fftsize)+1;
-fnmax = ceil(freqmax/fs*fftsize)+1;
+%fnmin = floor(freqmin/fs*fftsize)+1;
+%fnmax = ceil(freqmax/fs*fftsize)+1;
+fnmin = find(fvec<freqmin,1,'last');
+fnmax=find(fvec>freqmax,1,'first');
+
 onidx = round((onoffset(:,1)-margin)*fs/step); % add margin
 offidx = round((onoffset(:,2)+margin)*fs/step); % add margin
 onidx(1) = max(1,onidx(1));
@@ -219,7 +247,7 @@ for n=1:size(onoffset,1)
             maxampval(n) = fltnd(round(maxampfreq(n)),maxampidx(n));
         end
     end
-    meanfreq(n) = mean((freqmat(idx,1)-1)/fftsize*fs,'omitnan');
+    meanfreq(n) = mean((freqmat(idx,1)-1)/fftsize*fs,'omitnan'); % thats wrong
     ft = (peakfreqsg(:,1)-1)/fftsize*fs;
     cvfreq(n) = std(ft,1,'omitnan')/meanfreq(n);
 end
