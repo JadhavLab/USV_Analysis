@@ -38,6 +38,7 @@ fvec=0:120:100000;
 
 
 %%
+%{
 figure;
 sp=subplot(1,3,1);
 viewspan=1:find(tvec>10,1); % 10 seconds of data
@@ -69,7 +70,7 @@ linkaxes(sp);
 
 
 fftsize = (size(adjusted,1)-1)*2;
-
+%}
 mask = zeros(size(adjusted));
 %  a range mask here
 mask(fnmin:fnmax,:) = 1;
@@ -118,9 +119,9 @@ for fi=1:length(allfiles)
         audiodata.Data=gpuArray(audioread(audiodata.Filename,[1 min([180 audiodata.Duration])*audiodata.SampleRate])); % pull all samples
         
         % now load the full spectrogram onto gpu
-        audiodata.windowsize = round(audiodata.SampleRate*0.0032); % hardcoded in for large spectrogram at least
-        audiodata.noverlap = round(audiodata.SampleRate*.0016);
-        audiodata.nfft = round(audiodata.SampleRate*.0032);
+        audiodata.windowsize = round(audiodata.SampleRate*0.0016); % hardcoded in for large spectrogram at least
+        audiodata.noverlap = round(audiodata.SampleRate*.0008);
+        audiodata.nfft = round(audiodata.SampleRate*.0016);
         spect=struct('raw',[]);
         [spect.raw, f, t] = spectrogram(audiodata.Data,audiodata.windowsize,audiodata.noverlap,audiodata.nfft,audiodata.SampleRate,'yaxis');
         

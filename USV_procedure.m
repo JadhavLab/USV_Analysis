@@ -89,6 +89,142 @@ segment usvs, dont fuck with it, it should just work.
 % and then removes calls that suck...
 edit usvsegDetect
 
+%%
+callfiledir=uigetdir;
+callfiles=getAllFiles(callfiledir);
+wb=waitbar(0,'starting');
+tic;
+% this will take roughly 12 hours to run, or overnight
+for i=1:length(callfiles)
+    thisf=tic;
+    load(callfiles{i});
+    squeakCalls=Calls;
+    % may be able to optimize with guparray
+    [spect,thrshd,params,onoffset,onoffsetm]=usvsegDetect(audiodata);
+    % spect is the flattened centered im, thrshd is the pix that pass
+    % threshld after masking
+    
+    % now crossref the two algorithms (this will eventually be
+    % removesoftcalls)
+    
+    % just image some data
+    %{
+    figure;
+    mywin=[10000:20000];
+    figure; sp=subplot(2,1,1);
+    imagesc(params.tvec(mywin),params.fvec,spect(:,mywin));
+    sp(2)=subplot(2,1,2);
+    imagesc(params.tvec(mywin),params.fvec,thrshd(:,mywin));
+    linkaxes(sp);
+   %}
+    
+    
+    % the inputs are;
+    % calls
+    % onoffsetm
+    % onoffset
+    % params
+    % thrshd
+    % spect
+    %
+    
+    % so the question is what to do with the calls
+    % first lets get a combined vector of all the calls
+    
+    segCalls=[onoffsetm onoffset ones(length(onoffsetm))];
+    squeakTimes=[squeakCalls.Box(:,1) squeakCalls.Box(:,1)+squeakCalls.Box(:,3)]; squeakTimes(:,3)=1;
+    segTimes=onoffsetm; segTimes(:,3)=2;
+    allCalls=sortrows([squeakTimes; segTimes],1);
+    allCalls(:,2)=sort(allCalls(:,2)); % independently sort ends
+    % syllables whose margins are overlapped are integrated in onoffsetm but not in onoffset
+    overlap = find((allCalls(2:end,1)-allCalls(1:end-1,2))>=0); % use only those onto which the offset is before or at next onset
+    onsetTime = [allCalls(1);allCalls(overlap+1,1)]; % if they are, notch the on and offs out of the center
+    offsetTime = [allCalls(overlap,2); allCalls(end,2)];
+    callID= [[allCalls(1,3); allCalls(overlap+1,3)] [allCalls(overlap,3); allCalls(end,3)]];
+
+    Calls=table(onsetTime,offsetTime,callID,ones(length(onsetTime),1),...
+        'VariableNames',{'onsetTime','offsetTime','squeak1seg2','Accept'});
+    % so this is all the calls without copies, now we go through each and
+    % validate? how would we validate though... first lets see how the
+    % algos do.. looks like 13% in this file are exclusive to one algo
+    % 6% are deepsqueak, and 7% are usvseg.  I think we can consider 87%
+    % validated, and then go after the 6 and 7%
+    
+    orphanID=find(diff(callID,1,2)==0);
+    for id=1:length(orphanID)
+        
+        % sanity checking here
+        
+       
+        onsetI=max([1 find(params.tvec<=onsetTime(orphanID(id))-.03,1,'last')]);
+        offsetI=min([find(params.tvec>offsetTime(orphanID(id))+.03,1,'first') length(params.tvec)]);
+
+        % image the thing;
+        figure; sp=subplot(3,1,1);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,spect(:,onsetI:offsetI));
+        sp(2)=subplot(3,1,2);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI));
+        % okay this is a good example of noise, so lets use blob analysis
+        maskbounds=[onsetTime(orphanID(id)), offsetTime(orphanID(id)),...
+            15000, 90000];
+        mask=ones(size(spect,1),offsetI-onsetI);
+        mask(:,params.tvec(onsetI:offsetI)<maskbounds(1) | params.tvec(onsetI:offsetI)>maskbounds(2))=0;
+        mask(params.fvec<maskbounds(3) | params.fvec>maskbounds(4),:)=0;
+        sp(3)=subplot(3,1,3);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI).*mask);
+
+        
+        callblobs=regionprops(logical(thrshd(:,onsetI:offsetI)),spect(:,onsetI:offsetI),...
+            'PixelIdxList','Area','BoundingBox','MeanIntensity',...
+            'Centroid','Orientation','Eccentricity','Extent','EulerNumber','FilledImage');
+        % has to have at least
+        % blobs have to be:
+        % at least 2 msec, should be about 5 pix across
+        durmin=round(.002/params.timestep);
+        % mean intensity must be above threshold of 2.2 sd above mean
+        % orientation is greater than say 80*, or basically vertical
+        % must not be 'holey' e.g. filled image cant be more than 110% of
+        % holes image
+        % most have a centroid higher than 180kHz
+        % blob must not be through start or end of the call box
+        
+        okidx= cellfun(@(a) a(3)>durmin, {callblobs.BoundingBox}) &...
+            [callblobs.MeanIntensity]>2.2 & ...
+            ~([callblobs.Orientation]>80 | [callblobs.Orientation]<-80)&...
+            (cellfun(@(a) sum(a(:)), {callblobs.FilledImage})./[callblobs.Area]<1.1) & ...
+            cellfun(@(a) a(1)>5 && (a(1)+a(3))<(offsetI-onsetI-5),{callblobs.BoundingBox});
+        callblobs=callblobs(okidx);
+        Calls.realWin(1,:)=[nan nan];
+        %if isempty(callblobs)
+        if isempty(callblobs)
+            Calls.Accept(orphanID(id))=0;
+            Calls.realWin(orphanID(id),:)=[nan nan];
+        else
+            keyboard;
+            Calls.Accept(orphanID(id))=1;
+            % get the start and end of all the okay blobs
+            Calls.realWin(orphanID(id))=[params.tvec(round(min(cellfun(@(a) a(1), {callblobs.BoundingBox}))+onsetI)) ...
+                params.tvec(round(max(cellfun(@(a) a(1)+a(3), {callblobs.BoundingBox}))+onsetI))];
+        end
+        kill
+    end
+    
+    % now get stats from each call
+    
+    CallStats=getCallStats(Calls,spect,thrshd);
+            
+    
+    
+    save(callfiles{i},'Calls','audiodata','detection_metadata','segCalls', 'squeakCalls');
+    fprintf('took %.f seconds\n',toc(thisf));
+    waitbar(i/length(callfiles),wb,...
+        sprintf('runing now, probably %.2f mins left',toc/i/60*(length(callfiles)-i)));
+end
+close(wb);
+
+
+%%
+
 edit removeSoftCalls
 
 try

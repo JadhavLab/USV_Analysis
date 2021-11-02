@@ -1,4 +1,4 @@
-function [spect,thrshd,onoffset,onoffsetm]=usvsegDetect(audiodata)
+function [spect,thrshd,params,onoffset,onoffsetm]=usvsegDetect(audiodata,timewin)
 % function [spect,thrshd,onoffset,onoffsetm]=usvsegDetect(audiodata)
 % function usvsegDetect turns the usvseg workflow into a quick function
 
@@ -43,19 +43,23 @@ load('G:\USV data\Detections\C3-P20-T8 2021-10-07  3_26 PM.mat');
 audiodata.Filename='E:\Brandeis datasets\FMR1 Project Data\USV data\raw\Wav files\C3-P20-T8.wav';
 %}
 % initiate struct with parameters from audiofile
-params=struct('fs',audiodata.SampleRate);
+
+
+if ~exist('timewin','var') timewin=180; end % 3 minutes
+if isempty(timewin), timewin=180; end
+if length(timewin)==1, timewin=[0 timewin]; end % start to end
+params=struct('fs',audiodata.SampleRate,'timewin',timewin);
+
 
 % HARDCODED PARAMETERS:
 winsize=.0008;
 winbins=round(audiodata.SampleRate*winsize);
 stepsize=round(winbins/2); % use a 2x overlap
 
-nfft=1229*2; % use double, you kill the top half anyways
-% or use fvec.... I chose 120 hz steps, you could also do linspace
-fvec=0:120:100000;
+
 
 % spectrogram settings
-params.winsize = 0.0008;  params.fvec=0:120:100000;
+params.winsize = 0.0008;  params.fvec=0:300:100000;
 params.timestep=params.winsize/2; % will always round when converting to indices
 
 % call settings

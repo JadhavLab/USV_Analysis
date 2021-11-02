@@ -106,6 +106,7 @@ monoff(1) = 0;
 monoff(end) = onoff(end);
 onidx = find(diff(monoff)>0)+1; %
 offidx = find(diff(monoff)<0)+1; % 
+
 if isempty(onidx)||isempty(offidx)
     onoffset = zeros(0,2);
     onoffsetm = zeros(0,2);
@@ -123,11 +124,16 @@ end
 % continuity flag: check if the end of read file is "ON"
 contflg = monoff(end);
 
+
+tvec = params.tvec; 
+
+
 % gap thresholding
 % if any gap between on-off pairs is too short, combine
-gap = (onidx(2:end)-offidx(1:end-1))*params.timestep;
-gap(end+1) = 0;
-gid = find(gap>=params.gapmin);
+gap = tvec(onidx(2:end)) - tvec(offidx(1:end-1)); % use real time here
+
+gid = find(gap>params.gapmin); % keep startstop that are wider than gap
+% this will delete the stop before and th start after short gaps
 if ~isempty(gid)
     onidx = [onidx(1); onidx(gid+1)];
     offidx = [offidx(gid); offidx(end)];
@@ -136,15 +142,16 @@ else
     offidx = offidx(end);
 end
 
-% syllable duration threholding
-dur = (offidx-onidx)/params.fs*step;
-did = find(params.durmin<=dur & dur<=params.durmax);
-onidx = onidx(did);
-offidx = offidx(did);
-tvec = params.tvec; % ((0:(size(thrshd,2)-1))'*step+fftsize/2)/fs;
-% convert to real time here
-onset = tvec(onidx);
-offset = tvec(offidx);
+% syllable duration threholding (turn to real time)
+dur = tvec(offidx)-tvec(onidx);
+
+did = find(params.durmin<=dur & dur<=params.durmax); % okay syllable sizes
+duronidx = onidx(did);
+duroffidx = offidx(did);
+
+% now we have real timestamps of the onoff
+onset = tvec(duronidx);
+offset = tvec(duroffidx);
 if isempty(onset)||isempty(offset)
     onoffset = zeros(0,2);
     onoffsetm = zeros(0,2);
@@ -155,23 +162,43 @@ end
 % margin addition (onto front and back just under half the min window size)
 onsetm = onset-params.margin;
 offsetm = offset+params.margin;
-% syllables whose margins are overlapped are integrated in onoffsetm but not in onoffset
-idx = find((onsetm(2:end)-offsetm(1:end-1))>=0); % use only those onto which the offset is before or at next onset
-onsetI = [onset(1);onset(idx+1)']; % if they are, notch the on and offs out of the center
-offsetI = [offset(idx)';offset(end)];
 
-% now add margin
-onsetm = onsetI-params.margin;
 onsetm(1) = max(1/params.fs*step,onsetm(1)); % cant go earlier than first tic
-offsetm = offsetI+params.margin;
 offsetm(end) = min(max(size(thrshd,2)*step/params.fs),offsetm(end));     % or longer then file
 % output 
-onoffset = [onset offset];
-onoffsetm = [onsetm offsetm];
+onoffset = [onset' offset'];
+onoffsetm = [onsetm' offsetm'];
+
+verbose=0;
+if verbose
+    viewin=[1:10000];
+    % here is the plot for it all
+    figure; sp=subplot(4,1,1);
+    imagesc(thrshd(:,viewin));
+    sp(2)=subplot(4,1,2);
+    plot(onoff(viewin)*.5);
+    hold on;
+    plot(f(viewin));
+    legend('ononff','f')
+    sp(3)=subplot(4,1,3);
+    plot(monoff(viewin));
+    legend('monoff')
+    sp(4)=subplot(4,1,4);
+    tinds=zeros(size(monoff));
+    tinds(onidx)=1; tinds(offidx)=-1;
+    mytemp=cumsum(tinds);
+    plot(mytemp(viewin));
+    hold on; 
+    tinds=zeros(size(monoff));
+    tinds(duronidx)=1; tinds(duroffidx)=-1;
+    mytemp=cumsum(tinds);
+    plot(mytemp(viewin));
+    linkaxes(sp,'x'); legend('gaponoff','duronoff');
+    % convert back to indices, for no real reason...
+end
+
 % on/off signal
 temp = zeros(size(onoff));
-% convert back to indices, for no real reason...
-
 
 onidx2 = round((onset*params.fs)/step);
 % really not sure why hes adding to this fftsize... does he think its 
