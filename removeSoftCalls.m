@@ -1,9 +1,129 @@
-%%removeSoftCalls
+function [Calls,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect)
+% [Calls,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect)
+% function removeSoftCalls compares calls from DeepSqueak and usvSeg and
+% determines which are not real calls.
+% INPUTS:
+%   Calls
+%   onoffsetm
+%   onoffset
+%   params
+%   thrshd
+%   spect
+% OUTPUTS:
+%   Calls
+%   segCalls
+%   squeakCalls
+
+% Algorithm:
+%   1. merge all calls by window; use the fattest window for all calls
+%   2. review all calls that are from a single detector algorithm
+%   3. reconstitute the spectrogram there, and assay if there is enough
+%       blobs of intensity to allow the call
+%   4. Output new combined Call timestamps.
+
+% JHB 11-3-2021
+
+squeakCalls=Calls;
+segCalls=[onoffsetm onoffset ones(length(onoffsetm))];
+squeakTimes=[squeakCalls.Box(:,1) squeakCalls.Box(:,1)+squeakCalls.Box(:,3)]; squeakTimes(:,3)=1;
+segTimes=onoffsetm; segTimes(:,3)=2;
+allCalls=sortrows([squeakTimes; segTimes],1);
+allCalls(:,2)=sort(allCalls(:,2)); % independently sort ends
+% syllables whose margins are overlapped are integrated in onoffsetm but not in onoffset
+overlap = find((allCalls(2:end,1)-allCalls(1:end-1,2))>=0); % use only those onto which the offset is before or at next onset
+onsetTime = [allCalls(1);allCalls(overlap+1,1)]; % if they are, notch the on and offs out of the center
+offsetTime = [allCalls(overlap,2); allCalls(end,2)];
+callID= [[allCalls(1,3); allCalls(overlap+1,3)] [allCalls(overlap,3); allCalls(end,3)]];
+
+Calls=table(onsetTime,offsetTime,callID,ones(length(onsetTime),1),...
+    'VariableNames',{'onsetTime','offsetTime','squeak1seg2','Accept'});
+% so this is all the calls without copies, now we go through each and
+% validate? how would we validate though... first lets see how the
+% algos do.. looks like 13% in this file are exclusive to one algo
+% 6% are deepsqueak, and 7% are usvseg.  I think we can consider 87%
+% validated, and then go after the 6 and 7%
+
+orphanID=find(diff(callID,1,2)==0);
+Calls.realWin(1,:)=[nan nan]; % initiate realwin
+for id=1:length(orphanID)
+
+    % sanity checking here
 
 
+    onsetI=max([1 find(params.tvec<=onsetTime(orphanID(id))-.03,1,'last')]);
+    offsetI=min([find(params.tvec>offsetTime(orphanID(id))+.03,1,'first') length(params.tvec)]);
+
+   
+    % okay this is a good example of noise, so lets use blob analysis
+    maskbounds=[onsetTime(orphanID(id)), offsetTime(orphanID(id)),...
+        15000, 90000];
+    mask=ones(size(spect,1),offsetI-onsetI);
+    mask(:,params.tvec(onsetI:offsetI)<maskbounds(1) | params.tvec(onsetI:offsetI)>maskbounds(2))=0;
+    mask(params.fvec<maskbounds(3) | params.fvec>maskbounds(4),:)=0;
+
+
+    callblobs=regionprops(logical(thrshd(:,onsetI:offsetI)),spect(:,onsetI:offsetI),...
+        'PixelIdxList','Area','BoundingBox','MeanIntensity',...
+        'Centroid','Orientation','Eccentricity','Extent','EulerNumber','FilledImage');
+    % has to have at least
+    % blobs have to be:
+    % at least 2 msec, should be about 5 pix across
+    durmin=round(.002/params.timestep);
+    % mean intensity must be above threshold of 2.2 sd above mean
+    % orientation is greater than say 80*, or basically vertical
+    % must not be 'holey' e.g. filled image cant be more than 110% of
+    % holes image
+    % most have a centroid higher than 180kHz
+    % blob must not be through start or end of the call box
+
+    okidx= cellfun(@(a) a(3)>durmin, {callblobs.BoundingBox}) &...
+        [callblobs.MeanIntensity]>2.2 & ...
+        ~([callblobs.Orientation]>80 | [callblobs.Orientation]<-80)&...
+        (cellfun(@(a) sum(a(:)), {callblobs.FilledImage})./[callblobs.Area]<1.1) & ...
+        cellfun(@(a) a(1)>5 && (a(1)+a(3))<(offsetI-onsetI-5),{callblobs.BoundingBox});
+    callblobs=callblobs(okidx);
+    
+    % reconstitute the blobs only:
+    callImage=zeros(size(thrshd(:,onsetI:offsetI)));
+    for bl=1:length(callblobs)
+        inBox=ceil(callblobs(bl).BoundingBox);
+        callImage(inBox(2):inBox(2)+inBox(4)-1,inBox(1):inBox(1)+inBox(3)-1)=...
+            callblobs(bl).FilledImage;
+    end
+    
+     % image the thing;
+    figure; sp=subplot(4,1,1);
+    imagesc(params.tvec(onsetI:offsetI),params.fvec,spect(:,onsetI:offsetI));
+    sp(2)=subplot(4,1,2);
+    imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI));
+    sp(3)=subplot(4,1,3);
+    imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI).*mask);
+    sp(4)=subplot(4,1,4);
+    imagesc(params.tvec(onsetI:offsetI),params.fvec,callImage);
+
+
+
+    %if isempty(callblobs)
+    if isempty(callblobs)
+        Calls.Accept(orphanID(id))=0;
+        Calls.realWin(orphanID(id),:)=[nan nan];
+    else
+        keyboard;
+        Calls.Accept(orphanID(id))=1;
+        % get the start and end of all the okay blobs
+        blobinds=cell2mat({callblobs.BoundingBox}');
+        Calls.realWin(orphanID(id),:)=[params.tvec(onsetI+min(ceil(blobinds(:,1)))) ...
+            params.tvec(onsetI+max(ceil(blobinds(:,1))+blobinds(:,3)-1))];
+    end
+
+end
+end
+
+
+%% removeSoftCalls old code
 
 %%%% reject calls that are too soft %%%%%%%%%
-
+%{
 % first import a tool file
 load('G:\USV data\Detections\C3-P20-T8 2021-10-07  3_26 PM.mat');
 % variables are audiodata, Calls, detection_metadata
@@ -15,7 +135,7 @@ load('G:\USV data\Detections\C3-P20-T8 2021-10-07  3_26 PM.mat');
 audiodata.Data=gpuArray(audioread(audiodata.Filename)); % pull all samples
 
 % compare the spectrogram settings here:
-%{
+
 
 % now load the full spectrogram onto gpu
 % this can go much smaller, i use .8 msec bins, could prolly do .6
@@ -36,59 +156,8 @@ nfft=1229*2; % use double, you kill the top half anyways
 fvec=0:120:100000;
 %}
 
-
-%%
-%{
-figure;
-sp=subplot(1,3,1);
-viewspan=1:find(tvec>10,1); % 10 seconds of data
-imagesc(tvec(viewspan),fvec,adjusted(:,viewspan)); 
-set(gca,'YLim',[10000 100000],'Ydir','normal','CLim',[1 4]);
-
-freqmin=15000; freqmax=90000;
-
-% find threshold by using the z score
-fftsize = (size(adjusted,1)-1)*2;
-fnmin = find(fvec<freqmin,1,'last');
-fnmax = find(fvec>freqmax,1,'first');
-cut = adjusted(fnmin:fnmax,:);
-bin = -0.05:0.1:10; % -.05:.05 is the first datapoint, is the mean of the data
-bc = bin(1:end-1)+diff(bin)/2;
-h = histcounts(cut(:),bin); % bin data into 0 and 10 (z vals)
-fwhm = bc(find(h<h(1)/2,1)-1)*2;
-sigma = fwhm/2.35; % how nonnormal is this z?
-% the other way to do this is to get a normpdf of 2.5, but i think they
-% want the belly of this because the tail SHOULD be long.
-thresh = sigma*threshval;
-
-subplot(1,3,2); plot(bc,h); hold on; plot([thresh thresh],[0 max(h)],'r');
-
-sp(2)=subplot(1,3,3);
-imagesc(tvec(viewspan),fvec,adjusted(:,viewspan)>thresh); 
-set(gca,'YLim',[10000 100000],'Ydir','normal');
-linkaxes(sp);
-
-
-fftsize = (size(adjusted,1)-1)*2;
-%}
-mask = zeros(size(adjusted));
-%  a range mask here
-mask(fnmin:fnmax,:) = 1;
-thrshd = (adjusted>thresh).*mask;
-
-figure; imagesc(tvec(viewspan),fvec,thrshd(:,viewspan));
-
-%% if you want to see the histogram of each frequency
-y=[];
-edges=-1:.1:3;
-centbins=edges(1:end-1)-mean(diff(edges));
-for i=1:length(f)
-    [y(i,:),x]=histcounts(spectim(i,:),edges);
-end
-figure; imagesc(f,centbins,y'); set(gca,'Ydir','normal')
-    
-
-%%
+%% this section is the old thresholding that the current method is based on
+% see below:
 
 % to put this into practice:
 
@@ -100,10 +169,10 @@ figure; imagesc(f,centbins,y'); set(gca,'Ydir','normal')
 
 %filename='G:\USV data\Detections\C1_P6_1BL 2021-10-07  1_56 PM.mat';
 
+%{
 mydir='G:\USV data\Detections'; %uigetdir([],'Get folder with all the raw call mats');
-
 allfiles=getAllFiles(mydir,'.mat');
-%%
+
 wb=waitbar(0,'Starting up the curation process');
 for fi=1:length(allfiles)
 
@@ -206,27 +275,17 @@ save(allfiles{fi}, 'Calls', '-append');
 waitbar(fi/length(allfiles),wb,sprintf('Running Files Now! file %d of %d',fi,length(allfiles)));
 end
 waitbar(1,wb,'All Done! Kill this box');
-       
-%%
-    
-    if verbose
-        figure; subplot(1,2,1);
-        imagesc(callT,spect.f,normalizedspect);
-        subplot(1,2,2);
-        imagesc(callT,spect.f,(normalizedspect>1.8)+(normalizedspect>2.2));
-    end
-%These are all usvseg techniques for getting decent thresholded data.
-%Somehow they are better at pulling out blobs, so heres a dissection of the
-%method...
+  
+
+%}
+
 %%
 % try USVSEG filtering method
-filename='G:\USV data\Detections\C1_P6_1BL 2021-10-07  1_56 PM.mat';
-filename='G:\USV data\Detections\C4_P14_T9 2021-10-07  5_09 PM.mat';
 
 
-load(filename);
+%load(filename);
 
-wav=audioread(audiodata.Filename,[1 min([180 audiodata.Duration])*audiodata.SampleRate]);
+%wav=audioread(audiodata.Filename,[1 min([180 audiodata.Duration])*audiodata.SampleRate]);
 % first generate a spectrogram
 %this takes wayyyyyy too long
 
@@ -278,11 +337,16 @@ figure; imagesc(zscore(log(mean(abs(spmat(1:10000,1:(prm.fftsize/2+1),:)),3)))')
 set(gca,'YDir','normal')
 %}
 
+%% This builds the spect with DeepSqueak code, and then cleans it using
+% USVseg code.  USVseg is superior in cleaning spectrograms
 
 % deepsqueak uses a quick spectrogram function that is based off of a fft
 % usvseg writes their own multitaper function that basicaly is the above,
 % but each short time fft also has many many tapers.
 
+
+
+%{
 % we can get a very high res
 figure;
 span=audiodata.SampleRate*10; % 10 seconds of data
@@ -304,15 +368,9 @@ imagesc(tvec,fvec,log(abs(spect2)));
 set(gca,'YDir','normal','YLim',[15000 100000])
 linkaxes(sp);
 
-% we can go even higher, like 256 and 128
-%{
-span=1:find(tvec<10,1,'last'); % this is 10 seconds of data
-figure;
-sp=subplot(2,1,1);
-imagesc(tvec(span),fvec,log(mtsp(:,span)));
-%}
 
-%% lifter
+
+% lifter
 flims=[15000 90000];
 figure; sp=subplot(1,3,1);
 imagesc(tvec,fvec,spect);
@@ -328,22 +386,18 @@ lifter(1:liftercutoff,:) = 0;
 lifter((fftsize-liftercutoff+1):fftsize,:) = 0;
 temp = real(ifft(cep.*lifter));
 liftered = temp(1:(fftsize/2+1),:);
+
 sp(2)=subplot(1,3,2);
 imagesc(tvec,fvec,log(abs(liftered)));
 set(gca,'ydir','normal','Clim',[-1 3],'ylim',flims);
 linkaxes(sp);
 sp(3)=subplot(1,3,3);
-
 imagesc(tvec,fvec,liftered);
-
 set(gca,'ydir','normal','Clim',[-1 4],'ylim',flims);
 linkaxes(sp);
-% liftering seems to do nothing demonstrable to the data
-
-%% Median centering
 
 
-% median centering
+% Median centering
 med = median(liftered,2);
 liftmed = liftered-repmat(med,1,size(liftered,2));
 figure;
@@ -356,13 +410,10 @@ title('raw');
 sp(2)=subplot(1,2,2);
 imagesc(tvec,fvec,liftmed);
 set(gca,'ydir','normal','Clim',[-1 3],'ylim',flims);
-
-%set(gca,'ydir','normal','Clim',[-5 1]);
 linkaxes(sp);
 title('liftered median centered');
-% potentially improved the data may have lowered the noise
 
-%% movmedian smoothed
+% movmedian smoothed
 
 % i dont think we need this because were already at a high resolution
 % we could highpass in the y axis though...
@@ -399,7 +450,7 @@ set(gca,'YDir','normal','Clim',[-1 3],'ylim',flims);
 title('thresholded');
 linkaxes(sp);
 
-%% threshold
+% threshold
 
 
 figure;
@@ -413,10 +464,12 @@ imagesc(tvec,fvec,zscore(liftmed,1,1)>2.5);
 set(gca,'YDir','normal','ylim',flims);
 title('liftered median centered median smoothed');
 linkaxes(sp);
+
+%}
 %%
-
+% here you can play with the fspan and the window/stepsize
 % now toy with function
-
+%{
 [spect, f, t] = spectrogram(wav,1229,614,1229,audiodata.SampleRate,'yaxis');
 
 mtsp=abs(spect).*sqrt(f);
@@ -434,5 +487,5 @@ sp(3)=subplot(3,1,3);
 imagesc(tvec(span),fvec,log(abs(smoothed)));
 linkaxes(sp,'x','y');
 set(gca,'YDir','normal','CLim',[-0 6]);
-
+%}
 

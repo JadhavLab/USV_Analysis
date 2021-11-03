@@ -3,6 +3,13 @@ function [adjusted,fvec,tvec,liftmed,liftered,spect,ssx] = usvsegSpect(audiodata
 % spectrogram
 
 
+try
+    temp=audioinfo(audiodata.Filename);
+catch
+    [myfile,mydir]=uigetfile('',sprintf('Find audiofile for %s',audiodata.Filename));
+    audiodata.Filename=fullfile(mydir,myfile);
+end
+
 if nargin<2
     params.winsize=.0016;
     params.fvec=0:120:100000;
