@@ -88,15 +88,29 @@ for id=1:height(Calls)
     end
 
     allcallidx=cell2mat({callblobs.PixelList}');
-    % now that we have our legti blobs, lets get some stats here...
+
+
+    % now that we have our legit blobs, lets get some stats here...
     maxFreq=params.fvec(find(sum(callBW,2)>0,1,'last'));
     minFreq=params.fvec(find(sum(callBW,2)>0,1,'first'));
-    [histy,histx]=histcounts(params.fvec(allcallidx(:,2)),15000:2000:90000) % spectrogram overall, normalized to 0-1
+    [histy]=histcounts(params.fvec(allcallidx(:,2)),15000:2000:90000); % spectrogram overall, normalized to 0-1
     specGram=histy/max(histy); % this lets secondary peaks shine
 
     [maxIntensity,maxpos]=max(callIM(:));
     maxIntensityF=params.fvec(rem(maxpos,size(callIM,1)));
-    MeanIntensity=nanmean(callIM(:));
+    MeanIntensity=mean(callIM(:),'omitnan');
+
+    % build a spline
+    [~,splineinds]=max(callIM);
+    splinefreqs=params.fvec(splineinds);
+    splinefreqs(splinefreqs==params.fvec(1))=nan;
+
+    % max instantaneous slope
+    instaslope=max(diff(splinefreqs));
+    jumpslope=max(diff(splinefreqs(~isnan(splinefreqs))));
+    firstMoment=nanmean(diff(splinefreqs));
+    firstAbsMoment=nanmean(abs(diff(splinefreqs)));
+
 
     % now per blob
     maxSlope=max(cell2mat({callblobs.Orientation}));
@@ -104,18 +118,21 @@ for id=1:height(Calls)
     
     maxAbsSlope=max(abs(cell2mat({callblobs.Orientation})));
 
+    % create coords
     bitCoords=ceil(cell2mat({callblobs.BoundingBox}'));
     bitLengths=bitCoords(:,3)-1; 
-    longestSyll=max(bitLengths)/(offsetI-onsetI)
-    shortestSyll=min(bitLengths)/(offsetI-onsetI)
-    nSyll=length(callblobs);
+    longestSyll=max(bitLengths)/(offsetI-onsetI); % as a %% of time
+    shortestSyll=min(bitLengths)/(offsetI-onsetI); % as a %% of time
+    nSyll=size(callblobs,1);
+
+
     % %% of call that is actually voiced
     deadSpace=sum(bitCoords(:,3)-1)/(bitCoords(end,1)+bitCoords(end,3)-1-bitCoords(1));
 
     syllCenters=cell2mat({callblobs.Centroid}');
     maxSyllSpread=max(max(abs(syllCenters(:,2)-syllCenters(:,2)')));
 
-    SyllVar=nanvar(linearize(abs(syllCenters(:,2)-syllCenters(:,2)')));
+    SyllVar=var(linearize(abs(syllCenters(:,2)-syllCenters(:,2)')),'omitnan');
 
     % now need to do sinuosity
 
@@ -123,7 +140,20 @@ for id=1:height(Calls)
     % tallest syllable
 
     
-
+    % largest instantaneous freq step
+    % steepest blob, shallowest blob, mean blob steepness
+    % peak position in time (0-1 beginning to end)
+    % valley position in time (0-1) % e.g. lowest freq in time
+    % Freq distrib weighted by amplitude... just mean across y axis
+    % something like concavity- like corr yvals from center out
+    % need to remove harmonics, so find any blobs that have overlapping x,
+    % and use the blob with the lowest slope (noise is vertical, harmonics
+    % should be twice the slope)
+    % spline derivitive (maybe include nans here), second deriv too(abs
+    % tho) e.g. nonlinear energy
+    % area under the curve, so take the lowest freq, make that zero, then
+    % pull the area under the curve of that. do this in absolute hz not
+    % relative, and could get area fo reach blob
     
 
 
