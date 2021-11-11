@@ -90,7 +90,10 @@ segment usvs, dont fuck with it, it should just work.
 edit usvsegDetect
 
 %%
-callfiledir=uigetdir;
+callfiledir='G:\USV data\Detections';
+if ~isfolder(callfiledir)
+    calfiledir=uigetdir;
+end
 callfiles=getAllFiles(callfiledir);
 wb=waitbar(0,'starting');
 tic;
@@ -120,7 +123,7 @@ for i=1:length(callfiles)
     
     [Calls,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect);
     
-    CallStats=getCallStats(Calls,spect,thrshd);
+    CallStats=getCallStats(Calls(Calls.Accept==1,:),params,spect,thrshd);
             
     
     

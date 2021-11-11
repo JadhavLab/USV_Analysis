@@ -52,6 +52,7 @@ for id=1:length(orphanID)
 
     onsetI=max([1 find(params.tvec<=onsetTime(orphanID(id))-.03,1,'last')]);
     offsetI=min([find(params.tvec>offsetTime(orphanID(id))+.03,1,'first') length(params.tvec)]);
+    
 
    
     % okay this is a good example of noise, so lets use blob analysis
@@ -77,7 +78,7 @@ for id=1:length(orphanID)
     % blob must not be through start or end of the call box
 
     okidx= cellfun(@(a) a(3)>durmin, {callblobs.BoundingBox}) &...
-        [callblobs.MeanIntensity]>2.2 & ...
+        [callblobs.MeanIntensity]>2.4 & ...
         ~([callblobs.Orientation]>80 | [callblobs.Orientation]<-80)&...
         (cellfun(@(a) sum(a(:)), {callblobs.FilledImage})./[callblobs.Area]<1.1) & ...
         cellfun(@(a) a(1)>5 && (a(1)+a(3))<(offsetI-onsetI-5),{callblobs.BoundingBox});
@@ -91,16 +92,20 @@ for id=1:length(orphanID)
             callblobs(bl).FilledImage;
     end
     
-     % image the thing;
-    figure; sp=subplot(4,1,1);
-    imagesc(params.tvec(onsetI:offsetI),params.fvec,spect(:,onsetI:offsetI));
-    sp(2)=subplot(4,1,2);
-    imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI));
-    sp(3)=subplot(4,1,3);
-    imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI).*mask);
-    sp(4)=subplot(4,1,4);
-    imagesc(params.tvec(onsetI:offsetI),params.fvec,callImage);
-
+    verbose=0;
+    if verbose
+        % image the thing;
+        figure; sp=subplot(4,1,1);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,spect(:,onsetI:offsetI));
+        sp(2)=subplot(4,1,2);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI));
+        sp(3)=subplot(4,1,3);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI).*mask);
+        sp(4)=subplot(4,1,4);
+        imagesc(params.tvec(onsetI:offsetI),params.fvec,callImage);
+        keyboard
+        kill
+    end
 
 
     %if isempty(callblobs)
@@ -108,7 +113,7 @@ for id=1:length(orphanID)
         Calls.Accept(orphanID(id))=0;
         Calls.realWin(orphanID(id),:)=[nan nan];
     else
-        keyboard;
+        %keyboard;
         Calls.Accept(orphanID(id))=1;
         % get the start and end of all the okay blobs
         blobinds=cell2mat({callblobs.BoundingBox}');
