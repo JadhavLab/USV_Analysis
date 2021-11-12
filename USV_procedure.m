@@ -101,10 +101,15 @@ tic;
 for i=1:length(callfiles)
     thisf=tic;
     load(callfiles{i});
+    
+    % this has variables: CALLS AUDIODATA DETECTION_METADATA SEGCALLS
+    % we probably want to now save the spectrogram as well as the bwimage
+    % (but only for valid blobs)
+    
     % may be able to optimize with guparray
-    [spect,thrshd,params,onoffset,onoffsetm]=usvsegDetect(audiodata);
+    [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
     % spect is the flattened centered im, thrshd is the pix that pass
-    % threshld after masking
+    % threshold after masking
     
     % now crossref the two algorithms (this will eventually be
     % removesoftcalls)

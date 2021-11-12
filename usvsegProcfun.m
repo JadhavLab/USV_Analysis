@@ -1,4 +1,4 @@
-function [spect,thrshd,onoffset,onoffsetm] = usvsegProcfun(spect,params)
+function [spect,thrshd,onoffset,onoffsetm,blobthrshd] = usvsegProcfun(spect,params)
 
 %{
 fs=params.fs;
@@ -21,7 +21,7 @@ thrshd = thresholding(spect,params,thresh);
 
 
 % onset/offset detection
-[onoffset,onoffsetm] = detectonoffset(thrshd,params);
+[onoffset,onoffsetm,~,blobthrshd] = detectonoffset(thrshd,params);
 
 % use onoffsetm for the timewindows
 
@@ -77,35 +77,73 @@ end
 
 % ////////////////////////////////////////////////////////////////////////
 % this detects
-function [onoffset,onoffsetm,onoffsig,contflg] = detectonoffset(thrshd,params)
+function [onoffset,onoffsetm,onoffsig,blobthrshd] = detectonoffset(thrshd,params)
 
 %fs,timestep,gapmin,durmin,durmax,margin,onoffthresh
 
-
+% height threshold for any sound
 %onoffthresh = 5; % optimized for multitaper spectrogram.
 % I think this onoff thresh needs to be some real number...
 % just gonna say that it has to be a thousand hz tall and see what that
 % assume frequencies are uniform
-onoffthresh=round(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1000);
+onoffthresh=ceil(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1500);
 
-step = round(params.timestep*params.fs);
-% onset/offset detection
+
+% onset/offset detection (take timeseries wherein there are at least thrshd
+% number of consecutive high volume freqs
 onoff = max(filter(ones(onoffthresh,1),1,thrshd))'>=onoffthresh;
 
+% the image way
+temp=regionprops(logical(thrshd),'BoundingBox','PixelIdxList');
+
+onoff2=temp(cellfun(@(a) a(4)>onoffthresh, {temp.BoundingBox}),:);
 
 % merge fragmented pieces
 % this doesnt appear to do that.  It appears to shorten the duration of
 % each and every call...
 % 
-ndurmin = round(params.durmin*params.fs/step);
-f = filter(ones(ndurmin,1)/ndurmin,1,[onoff;zeros(round(ndurmin/2),1)]);
-% you can add gap filters in...
+ndurmin = round(params.durmin/params.timestep);
 
-monoff = f(round(ndurmin/2)+1:end)>0.5;
+% this adds half the length of the ndurmin onto the front of the vector
+f = filter(ones(ndurmin,1)/ndurmin,1,[onoff;zeros(round(ndurmin/2),1)]);
+
+% and you can still filter f2
+f2=onoff2(cellfun(@(a) a(3)>ndurmin, {onoff2.BoundingBox}),:);
+
+% in parallel try the image version of this method
+blobthrshd=zeros(size(thrshd,1),size(thrshd,2));
+blobthrshd(cell2mat({f2.PixelIdxList}'))=1;
+
+% maybe expand in freq domain, filter time domain and then roll back freq
+% expansion?
+% filter in the time domain
+% the problem with this is that if the call chirps this kills it (steep
+% calls)
+
+%filtThrshd=filter(ones(ndurmin,1)/ndurmin,1,[newthrshd'; zeros(round(ndurmin/2),size(newthrshd,1))])';
+
+filtThrshd=filter(ones(ndurmin,1)/ndurmin,1,[sum(blobthrshd)'>0; zeros(round(ndurmin/2),1)])';
+
+
+useblobs=1;
+if useblobs
+    % either use it with contiguous blobs here
+    monoff2=filtThrshd(round(ndurmin/2)+1:end)'>0.5;
+else
+    % now pull the on-offs of the image
+    monoff = f(round(ndurmin/2)+1:end)>0.5;
+end
 monoff(1) = 0; 
-monoff(end) = onoff(end);
+
+% need to revisit why we cast the last element of the vector
+monoff(end) = onoff(end); %??
+
+% on index off index
 onidx = find(diff(monoff)>0)+1; %
 offidx = find(diff(monoff)<0)+1; % 
+
+onidx2=find(diff(monoff2)>0)+1;
+offidx2=find(diff(monoff2)<0)+1;
 
 if isempty(onidx)||isempty(offidx)
     onoffset = zeros(0,2);
@@ -131,12 +169,19 @@ tvec = params.tvec;
 % gap thresholding
 % if any gap between on-off pairs is too short, combine
 gap = tvec(onidx(2:end)) - tvec(offidx(1:end-1)); % use real time here
-
 gid = find(gap>params.gapmin); % keep startstop that are wider than gap
+
+gap2=tvec(onidx2(2:end)) - tvec2(offidx2(1:end-1));
+gid2 = find(gap2>params.gapmin); % keep startstop that are wider than gap
+
 % this will delete the stop before and th start after short gaps
 if ~isempty(gid)
     onidx = [onidx(1); onidx(gid+1)];
     offidx = [offidx(gid); offidx(end)];
+    
+    onidx2 = [onidx2(1); onidx2(gid+1)];
+    offidx2 = [offidx2(gid); offidx2(end)];
+    
 else
     onidx = onidx(1);
     offidx = offidx(end);
@@ -420,5 +465,17 @@ fil = filter(salfilt,1,[fltnd;zeros(filtsz,size(fltnd,2))]);
 spcsal = fil(filtsz+1:end,:);
 end
 
+%%
+%{
+
+Always check your spectrogams
+
+figure; subplot(2,1,1);
+imagesc(params.tvec(1:10000),params.fvec,newthrshd(:,1:100000));
+subplot(2,1,2);
+imagesc(params.tvec(1:10000),params.fvec,filtThrshd(:,1:100000)>.6);
+linkaxes(get(gcf,'Children'));
+
+%}
 
 

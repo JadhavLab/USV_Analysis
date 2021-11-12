@@ -1,4 +1,4 @@
-function [spect,thrshd,params,onoffset,onoffsetm]=usvsegDetect(audiodata,timewin)
+function [spect,thrshd,params,onoffset,onoffsetm,blobthrshd]=usvsegDetect(audiodata,timewin)
 % function [spect,thrshd,onoffset,onoffsetm]=usvsegDetect(audiodata)
 % function usvsegDetect turns the usvseg workflow into a quick function
 
@@ -78,7 +78,7 @@ params.fvec=fvec;
 params.tvec=tvec;
 
 % process all the way- get the segments here
-[spect,thrshd,onoffset,onoffsetm] =usvsegProcfun(adjusted,params);
+[spect,thrshd,onoffset,onoffsetm,blobthrshd] =usvsegProcfun(adjusted,params);
 
 
 
