@@ -84,7 +84,7 @@ function [onoffset,onoffsetm,onoffsig,contflg] = detectonoffset(thrshd,params)
 
 %onoffthresh = 5; % optimized for multitaper spectrogram.
 % I think this onoff thresh needs to be some real number...
-% just gonna say that it has to be a thousand hz across and see what that
+% just gonna say that it has to be a thousand hz tall and see what that
 % assume frequencies are uniform
 onoffthresh=round(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1000);
 

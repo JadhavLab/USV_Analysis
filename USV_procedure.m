@@ -92,7 +92,7 @@ edit usvsegDetect
 %%
 callfiledir='G:\USV data\Detections';
 if ~isfolder(callfiledir)
-    calfiledir=uigetdir;
+    callfiledir=uigetdir;
 end
 callfiles=getAllFiles(callfiledir);
 wb=waitbar(0,'starting');
@@ -117,16 +117,48 @@ for i=1:length(callfiles)
     % thrshd
     % spect
     %
-    
+
     % so the question is what to do with the calls
     % first lets get a combined vector of all the calls
+
+    [Calls2,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect);
+    % many calls are being lumped back into a single call!! i need to split
+    % calls again
+
+    segCalls=table(onoffset(:,1),onoffset(:,2),ones(length(onoffset),1),...
+        'VariableNames',{'onsetTime','offsetTime','Accept'});
+    CallStats=getCallStats(segCalls(segCalls.Accept==1,:),params,spect,thrshd);
+
+    %{
+    stream = RandStream('mlfg6331_64');  % Random number stream
+    options = statset('UseParallel',1,'UseSubstreams',1,'Streams',stream);
+    % need to do this with different number of means and gather some stats
+    % on cluster quality (prob iso and l-ratio)
+    [idx,C,sumd,D] = kmeans(table2array(allCalls),5,'Options',options,'MaxIter',10000,...
+        'Display','final','Replicates',10);
+    %}
     
-    [Calls,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect);
+
     
-    CallStats=getCallStats(Calls(Calls.Accept==1,:),params,spect,thrshd);
-            
-    
-    
+    %{
+    for i=1:max(idx)
+        figure;
+        [inds]=find(idx==i);
+        toplot=randperm(length(inds));
+        for j=1:min([length(toplot) 9])
+            subplot(3,3,j)
+            mybounds=[Calls.realWin(inds(toplot(j)),1) Calls.realWin(inds(toplot(j)),2)];
+            onsetI=max([1 find(params.tvec<=mybounds(1),1,'last')]);
+            offsetI=min([find(params.tvec>mybounds(2),1,'first') length(params.tvec)]);
+            imagesc((onsetI:offsetI)*tstep,params.fvec,thrshd(:,onsetI:offsetI))
+        end
+        sgtitle(sprintf('Category %d',i));
+    end
+    allCalls2=allCalls; allCalls2.specGram=[];
+    [coeff,score,latent] = pca(zscore(table2array(allCalls2)));
+    figure; scatter3(score(:,1),score(:,2),score(:,3));
+    %}
+
     save(callfiles{i},'Calls','audiodata','detection_metadata','segCalls', 'squeakCalls');
     fprintf('took %.f seconds\n',toc(thisf));
     waitbar(i/length(callfiles),wb,...

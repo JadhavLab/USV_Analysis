@@ -23,17 +23,23 @@ function [Calls,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,p
 
 % JHB 11-3-2021
 
+
+% dont merge calls.. instead run the normal algorithm and if you have
+% squeak calls that arent seg calls, lower thresh just a bit to see
 squeakCalls=Calls;
-segCalls=[onoffsetm onoffset ones(length(onoffsetm))];
+segCalls=table(onoffsetm(:,1),onoffsetm(:,1), ones(length(onoffsetm),1),onoffset(:,1),onoffset(:,2),...
+    'VariableNames',{'onsetTime','offsetTime','Accept','blobOnset','blobOffset'};
 squeakTimes=[squeakCalls.Box(:,1) squeakCalls.Box(:,1)+squeakCalls.Box(:,3)]; squeakTimes(:,3)=1;
 segTimes=onoffsetm; segTimes(:,3)=2;
-allCalls=sortrows([squeakTimes; segTimes],1);
-allCalls(:,2)=sort(allCalls(:,2)); % independently sort ends
+%allCalls=sortrows([squeakTimes; segTimes],1);
+allCalls=sortrows(segTimes,1);
+%allCalls(:,2)=sort(allCalls(:,2)); % independently sort ends
 % syllables whose margins are overlapped are integrated in onoffsetm but not in onoffset
 overlap = find((allCalls(2:end,1)-allCalls(1:end-1,2))>=0); % use only those onto which the offset is before or at next onset
 onsetTime = [allCalls(1);allCalls(overlap+1,1)]; % if they are, notch the on and offs out of the center
 offsetTime = [allCalls(overlap,2); allCalls(end,2)];
-callID= [[allCalls(1,3); allCalls(overlap+1,3)] [allCalls(overlap,3); allCalls(end,3)]];
+callID=ones(size(allCalls,1),2)*2;
+%callID= [[allCalls(1,3); allCalls(overlap+1,3)] [allCalls(overlap,3); allCalls(end,3)]];
 
 Calls=table(onsetTime,offsetTime,callID,ones(length(onsetTime),1),...
     'VariableNames',{'onsetTime','offsetTime','squeak1seg2','Accept'});
@@ -43,7 +49,8 @@ Calls=table(onsetTime,offsetTime,callID,ones(length(onsetTime),1),...
 % 6% are deepsqueak, and 7% are usvseg.  I think we can consider 87%
 % validated, and then go after the 6 and 7%
 
-orphanID=find(diff(callID,1,2)==0);
+%orphanID=find(diff(callID,1,2)==0);
+orphanID=1:length(callID);
 Calls.realWin(1,:)=[nan nan]; % initiate realwin
 for id=1:length(orphanID)
 
@@ -78,7 +85,7 @@ for id=1:length(orphanID)
     % blob must not be through start or end of the call box
 
     okidx= cellfun(@(a) a(3)>durmin, {callblobs.BoundingBox}) &...
-        [callblobs.MeanIntensity]>2.4 & ...
+        [callblobs.MeanIntensity]>2.2 & ...
         ~([callblobs.Orientation]>80 | [callblobs.Orientation]<-80)&...
         (cellfun(@(a) sum(a(:)), {callblobs.FilledImage})./[callblobs.Area]<1.1) & ...
         cellfun(@(a) a(1)>5 && (a(1)+a(3))<(offsetI-onsetI-5),{callblobs.BoundingBox});
@@ -92,10 +99,10 @@ for id=1:length(orphanID)
             callblobs(bl).FilledImage;
     end
     
-    verbose=0;
+    verbose=1;
     if verbose
         % image the thing;
-        figure; sp=subplot(4,1,1);
+        figure('Position',  [680    92   560   886]); sp=subplot(4,1,1);
         imagesc(params.tvec(onsetI:offsetI),params.fvec,spect(:,onsetI:offsetI));
         sp(2)=subplot(4,1,2);
         imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI));
@@ -103,7 +110,8 @@ for id=1:length(orphanID)
         imagesc(params.tvec(onsetI:offsetI),params.fvec,thrshd(:,onsetI:offsetI).*mask);
         sp(4)=subplot(4,1,4);
         imagesc(params.tvec(onsetI:offsetI),params.fvec,callImage);
-        keyboard
+        sgtitle(sprintf('blobs = %d, accept = %d',length(callblobs), length(callblobs)>0))
+        pause(.5)
         kill
     end
 
@@ -119,6 +127,9 @@ for id=1:length(orphanID)
         blobinds=cell2mat({callblobs.BoundingBox}');
         Calls.realWin(orphanID(id),:)=[params.tvec(onsetI+min(ceil(blobinds(:,1)))) ...
             params.tvec(onsetI+max(ceil(blobinds(:,1))+blobinds(:,3)-1))];
+    end
+    if Calls.realWin(orphanID(id),1)==0
+        keyboard
     end
 
 end

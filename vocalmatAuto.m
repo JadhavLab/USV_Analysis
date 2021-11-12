@@ -69,6 +69,9 @@ The outline:
 
 IN SUMMARY:
 -they have a comparably sophisticated method to usvseg of detecting calls
+- they classify calls when they detect them- into about 12 categories- flat,
+up, down, up chev, down chev, hi lo, lo hi, hi lo hi, swoopy, and multiple
+hi los, noise and short
 -they have a comparably unsophisticated method to deepsqueak of classifying calls
 -in classifying calls, we have two options i think.
     1. Find a way to warp the image that makes it LOOK more resolved, then
