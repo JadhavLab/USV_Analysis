@@ -4,6 +4,7 @@ This is the analysis sketchpad of the usv data from start to finish
  functions or other scripts if they become useful.
 
 the preprocessing pipeline was as follows:
+
 1. DeepSqueak:
 -data were acquired, see acquisition protocol
 -a systematically random selection of files were pulled and manually
@@ -15,7 +16,7 @@ using both the rat detector yolo r1 and rat detector JHB networks together
 
 2. using USVseg, the problem basically is that they fucked up the
 multitaper spectrogram, so it doesnt work... its possible that we could use
-chronux bit i havent tried.  I am rather convincec that multitaper isnt
+chronux bit i havent tried.  I am rather convinced that multitaper isnt
 really useful unless you have a lot of noise, so im willing ot kill it for
 now
 -so I would hack off USVSeg into my own pipeline, run all the files,
@@ -25,6 +26,11 @@ struct, and go from there.
 The idea would be to okay all usvs that get caught by both, maybe using the
 fattest window first, and then those that only get caught by one, i'd have
 to peek and see what tehy miss.
+
+3.vocalMat:
+   
+
+
 
 Manual edits:
 First some observations:

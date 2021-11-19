@@ -182,9 +182,9 @@ for minute_frame = 1:num_segments
     % -- nfft: number of points for the Discrete Fourier Transform
     % -- window: windowing function
     % -- nover: number of overlapped samples
-    nfft      = 1024;
-    window    = hamming(256);
-    nover     = (128);
+    nfft      = 1024; % so 1024 points between fs/2 (180000) and window/2, or 256
+    window    = hamming(256); % in my case ~2/3 msec
+    nover     = (128); % in my case 1/3 second
     [S,F,T,P] = spectrogram(y2, window, nover, nfft, fs, 'yaxis');
     
     % -- remove frequencies bellow 15kHz

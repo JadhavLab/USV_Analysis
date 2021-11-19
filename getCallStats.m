@@ -42,6 +42,28 @@ The output:
 7. perFileCallID
 8. power
 9. box(4) which is height
+
+PARAMETERS I'LL WANT;
+OVERALL PARAMS
+max freq
+min freq
+mean freq
+duration
+
+n syllables
+dead space
+longest syllable
+shortest syllable
+mean syllable duration
+number of nonoverlapping syllables
+
+slope overall
+linearity overall
+sinuosity overall
+curviture overall
+
+
+
 %}
 
 cstats=table(nan(height(Calls),1),'VariableNames',{'nSyll'});
