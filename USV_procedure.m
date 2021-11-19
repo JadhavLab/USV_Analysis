@@ -89,7 +89,106 @@ segment usvs, dont fuck with it, it should just work.
 % and then removes calls that suck...
 edit usvsegDetect
 
-%%
+% and to implement the usvsegDetect:
+
+wavfiledir='G:\USV data\Raw\wav';
+wavfilenames=getAllFiles(wavfiledir);
+fileinfo=dir(wavfiledir); fileinfo([fileinfo.isdir])=[];
+outdir='G:\USV data\segData';
+if ~isfolder(outdir)
+    mkdir('G:\USV data\segData');
+end
+nameadd='_callData';
+bigclock=tic;
+wb=waitbar(0,'Starting to build each session');
+for i=427:length(wavfilenames)
+    smallclock=tic;
+    audiodata=audioinfo(wavfilenames{i});
+    
+    sessdata=rmfield(fileinfo(i),{'bytes','isdir'});
+    myfilename=sessdata.name;
+    unders=find(myfilename=='_' | myfilename=='-');
+    sessdata.cohort=str2double(myfilename(2:unders(1)-1)); % cohort
+    sessdata.age=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
+    % pull rat name from file name
+    sessdata.ratname=myfilename(unders(2)+1:end-4);
+    
+    [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
+    % spect is the flattened centered im, thrshd is the pix that pass
+    % threshold after masking
+    
+    segCalls=table(onoffset(:,1),onoffset(:,2),ones(size(onoffset,1),1),...
+        'VariableNames',{'onsetTime','offsetTime','Accept'});
+    
+    calldata=getCallStats(segCalls,params,spect,thrshd);
+    
+    % reduce the data size of the spect
+    spect=uint8(rescale(spect)*256);
+    save(fullfile(outdir,[sessdata.name(1:end-4) nameadd]),...
+        'audiodata','params','spect','blobs','segCalls','calldata');
+    waitbar(i/length(wavfilenames),wb,sprintf('Its taken %d minutes, Likely %d more',...
+        round(toc(bigclock)/60),round(toc(smallclock)*(length(wavfilenames)-i)/60)));
+end
+
+% the next step i think would be to get all the binary images and turn them
+% into a smaller vector (like they do in deepsqueak using a vae)
+
+%% now to drop these into smaller dimensions
+
+% i will generate a new latentscore variable for each day that is the vae
+% deconstruction of the data.  I'll have to save the vae encoder and
+% decoder data so that I can use it to reconstruct centroids and examples.
+
+% first generate the input dataset.
+% this time try the black and white images
+inputfolder=uigetdir('Select folder of usvSeg Data');
+statfiles=getAllFiles(inputfolder);
+
+% this is hardcoded for now, but suffice to say its going to be 600 msec
+% images from 15 khz to 90 khz
+allcalls=[];
+wb=waitbar(0,'concatenating ALL the images');
+% what percentage of images will we need to classify these guys????
+% probably like half
+bigclock=tic;
+for i=1:length(statfiles)
+    smallclock=tic;
+    load(statfiles{i},'blobs','segCalls','params');
+    okfreqs=params.fvec>15000 & params.fvec<90000;
+    badcalls=segCalls.onsetTime<5 | segCalls.offsetTime>min([180 size(blobs,2)*params.timestep])-5;
+    segCalls=segCalls(~badcalls,:);
+    mycalls=false(128,128,height(segCalls));
+    callcenters=mean(table2array(segCalls(:,1:2)),2);
+    centerinds=interp1(params.tvec,1:length(params.tvec),callcenters,'nearest');
+    calldurs=(segCalls.offsetTime-segCalls.onsetTime)/params.timestep;
+    
+    % go forward 200 msec, and forward 200 msec, then resize to 256
+    for j=1:length(callcenters)
+
+        % were going from 1000 to 128
+        mycalls(:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+       
+        %mycalls(:,:,j)=imresize(blobs(okfreqs,centerinds(j)-round(.2/params.timestep):centerinds(j)+round(.2/params.timestep)),[128,128]);
+    end
+    allcalls=cat(3,allcalls,mycalls);
+    waitbar(i/length(statfiles),wb,sprintf('Has taken %d mins, will prolly go %d more mins',...
+    round(toc(largeclock)/60),round(toc(smallclock)/60)));
+end
+
+% now run the encoder decoder...
+% Load the network model
+[encoderNet, decoderNet] = VAE_model();
+
+images = dlarray(mycalls, 'SSCB');
+
+% Divide the images into training and validation
+[trainInd,valInd] = dividerand(size(ClusteringData, 1), .9, .1);
+XTrain  = images(:,:,:,trainInd);
+XTest   = images(:,:,:,valInd);
+
+% Train the network
+[encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
+%% using deepsqueak...
 callfiledir='G:\USV data\Detections';
 if ~isfolder(callfiledir)
     callfiledir=uigetdir;
@@ -110,29 +209,10 @@ for i=1:length(callfiles)
     [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
     % spect is the flattened centered im, thrshd is the pix that pass
     % threshold after masking
-    
-    % now crossref the two algorithms (this will eventually be
-    % removesoftcalls)
-
-    % the inputs are;
-    % calls
-    % onoffsetm
-    % onoffset
-    % params
-    % thrshd
-    % spect
-    %
-
-    % so the question is what to do with the calls
-    % first lets get a combined vector of all the calls
-
-    [Calls2,segCalls,squeakCalls]=removeSoftCalls(Calls,onoffsetm,onoffset,params,thrshd,spect);
-    % many calls are being lumped back into a single call!! i need to split
-    % calls again
 
     segCalls=table(onoffset(:,1),onoffset(:,2),ones(length(onoffset),1),...
         'VariableNames',{'onsetTime','offsetTime','Accept'});
-    CallStats=getCallStats(segCalls(segCalls.Accept==1,:),params,spect,thrshd);
+    CallStats=getCallStats(segCalls,params,spect,thrshd);
 
     %{
     stream = RandStream('mlfg6331_64');  % Random number stream
@@ -164,7 +244,7 @@ for i=1:length(callfiles)
     figure; scatter3(score(:,1),score(:,2),score(:,3));
     %}
 
-    save(callfiles{i},'Calls','audiodata','detection_metadata','segCalls', 'squeakCalls');
+    save(callfiles{i},'Calls','audiodata','params','spect','blobs','segCalls','CallStats');
     fprintf('took %.f seconds\n',toc(thisf));
     waitbar(i/length(callfiles),wb,...
         sprintf('runing now, probably %.2f mins left',toc/i/60*(length(callfiles)-i)));

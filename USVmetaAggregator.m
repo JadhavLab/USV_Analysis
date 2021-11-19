@@ -1,4 +1,31 @@
 %% Import data from spreadsheet
+
+
+% to just import the data in aggregate
+
+%    Workbook: C:\Users\John Bladon\Desktop\USV recordings .xlsx
+%    Worksheet: Summary
+
+
+opts = spreadsheetImportOptions("NumVariables", 9);
+
+% Specify sheet and range
+opts.Sheet = "Summary";
+opts.DataRange = "A2:I105";
+
+% Specify column names and types
+opts.VariableNames = ["Cohort", "Animal", "Genotype", "Sex", "EarMarkings", "ToeMarkings", "LegMarkings", "Birthdate", "notes"];
+opts.VariableTypes = ["double", "string", "string", "string", "string", "string", "string", "string", "string"];
+
+% Specify variable properties
+opts = setvaropts(opts, ["ToeMarkings", "EarMarkings", "LegMarkings", "notes"], "WhitespaceRule", "preserve");
+opts = setvaropts(opts, ["Cohort", "Animal", "Genotype", "Sex", "EarMarkings", "ToeMarkings", "LegMarkings", "Birthdate", "notes"],...
+ "EmptyFieldRule", "auto");
+
+% Import the data
+USVSummary = readtable("C:\Users\John Bladon\Desktop\USV recordings.xlsx", opts, "UseExcel", false);
+
+%% for individual sessions:
 % Script for importing data from the following spreadsheet:
 %
 %    Workbook: C:\Users\John Bladon\Desktop\USV recordings .xlsx

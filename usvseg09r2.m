@@ -404,7 +404,8 @@ if strcmp(action,'fldr')
             if diff(rng)<fftsize*2, break; end
             [wav,fs] = audioread(fp,rng);
             % process
-            [mtsp,fltnd,onoffset,onoffsetm,freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq,thresh,med,contflg] = procfun(wav,fs,fftsize,gv.prm,med,thresh);
+            [mtsp,fltnd,onoffset,onoffsetm,freqtrace,amptrace,maxampval,maxampidx,maxfreq,meanfreq,cvfreq,thresh,med,contflg] =...
+            procfun(wav,fs,fftsize,gv.prm,med,thresh);
             dur = diff(onoffset,[],2);
             ronoffset = onoffset+(prevlast+1)/fs;
             ronoffsetm = onoffsetm+(prevlast+1)/fs;

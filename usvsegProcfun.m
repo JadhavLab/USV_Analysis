@@ -81,54 +81,59 @@ function [onoffset,onoffsetm,onoffsig,blobthrshd] = detectonoffset(thrshd,params
 
 %fs,timestep,gapmin,durmin,durmax,margin,onoffthresh
 
-% height threshold for any sound
-%onoffthresh = 5; % optimized for multitaper spectrogram.
-% I think this onoff thresh needs to be some real number...
-% just gonna say that it has to be a thousand hz tall and see what that
-% assume frequencies are uniform
-onoffthresh=ceil(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1500);
+% first identify syllables, they basically have to blobs of a enough height
+% and width.
+
+% then combine blobs and increase the threshold for duration- a single
+% 'blob' that lasts less than a msec is not real, but a few that are
+% together could be
 
 
+%%% first parse syllables %%%
+
+% Mimnimum vocalization height (has to be high for 1000 hz in a row)
+onoffthresh=ceil(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1200);
 % onset/offset detection (take timeseries wherein there are at least thrshd
 % number of consecutive high volume freqs
 onoff = max(filter(ones(onoffthresh,1),1,thrshd))'>=onoffthresh;
 
+onoffim=filter(ones(onoffthresh,1),1,thrshd)>.6;
 % the image way
-temp=regionprops(logical(thrshd),'BoundingBox','PixelIdxList');
+blobraw=regionprops(onoffim,'BoundingBox','PixelIdxList');
+% filter based on height just as above
+blobs=blobraw(cellfun(@(a) a(4)>onoffthresh & params.fvec(round(a(2)))>params.freqmin+2000, {blobraw.BoundingBox}),:);
 
-onoff2=temp(cellfun(@(a) a(4)>onoffthresh, {temp.BoundingBox}),:);
+% filter based on whether its touching an edge
 
 % merge fragmented pieces
-% this doesnt appear to do that.  It appears to shorten the duration of
-% each and every call...
-% 
-ndurmin = round(params.durmin/params.timestep);
 
+% filter the flat timeseries
+ndurmin = round(params.durmin/params.timestep); % phrase minimum length
 % this adds half the length of the ndurmin onto the front of the vector
+% this filters by duration of syllable
 f = filter(ones(ndurmin,1)/ndurmin,1,[onoff;zeros(round(ndurmin/2),1)]);
 
-% and you can still filter f2
-f2=onoff2(cellfun(@(a) a(3)>ndurmin, {onoff2.BoundingBox}),:);
 
-% in parallel try the image version of this method
-blobthrshd=zeros(size(thrshd,1),size(thrshd,2));
-blobthrshd(cell2mat({f2.PixelIdxList}'))=1;
+% remove blobs that are too short (half the min syll length)
+blobs=blobs(cellfun(@(a) a(3)>ndurmin, {blobs.BoundingBox}),:);
 
-% maybe expand in freq domain, filter time domain and then roll back freq
-% expansion?
-% filter in the time domain
-% the problem with this is that if the call chirps this kills it (steep
-% calls)
+% i think we should do a size threshold, say there has to be many positive
+% pixels in the large neighborhood- small calls are getting through
+% something like index say the min call size x and up and down say 40k hz
+% to find all pixels, and oyu'll need at least 2 calls of size 5y and 8x
+% pixels
 
-%filtThrshd=filter(ones(ndurmin,1)/ndurmin,1,[newthrshd'; zeros(round(ndurmin/2),size(newthrshd,1))])';
 
-filtThrshd=filter(ones(ndurmin,1)/ndurmin,1,[sum(blobthrshd)'>0; zeros(round(ndurmin/2),1)])';
+% now turn the blobs into a timevec, and threshold again
+blobthrshd=false(size(thrshd,1),size(thrshd,2));
+blobthrshd(cell2mat({blobs.PixelIdxList}'))=true;
+filtThrshd=filter(ones(ndurmin,1)/ndurmin,1,[sum(blobthrshd)'>0; zeros(round(ndurmin),1)])';
 
 
 useblobs=1;
 if useblobs
     % either use it with contiguous blobs here
-    monoff2=filtThrshd(round(ndurmin/2)+1:end)'>0.5;
+    monoff=filtThrshd(round(ndurmin/2)+1:end)'>0.5;
 else
     % now pull the on-offs of the image
     monoff = f(round(ndurmin/2)+1:end)>0.5;
@@ -142,9 +147,7 @@ monoff(end) = onoff(end); %??
 onidx = find(diff(monoff)>0)+1; %
 offidx = find(diff(monoff)<0)+1; % 
 
-onidx2=find(diff(monoff2)>0)+1;
-offidx2=find(diff(monoff2)<0)+1;
-
+% fix if empty or edges are problematic
 if isempty(onidx)||isempty(offidx)
     onoffset = zeros(0,2);
     onoffsetm = zeros(0,2);
@@ -152,12 +155,12 @@ if isempty(onidx)||isempty(offidx)
     contflg = 0;
     return;
 end
+
+% if last syll goes to end, kill that
 offidx(end) = min(offidx(end),length(monoff));
 if ~isempty(onidx) && monoff(end)==1
     onidx = onidx(1:end-1);
 end
-
-
 
 % continuity flag: check if the end of read file is "ON"
 contflg = monoff(end);
@@ -171,17 +174,11 @@ tvec = params.tvec;
 gap = tvec(onidx(2:end)) - tvec(offidx(1:end-1)); % use real time here
 gid = find(gap>params.gapmin); % keep startstop that are wider than gap
 
-gap2=tvec(onidx2(2:end)) - tvec2(offidx2(1:end-1));
-gid2 = find(gap2>params.gapmin); % keep startstop that are wider than gap
-
 % this will delete the stop before and th start after short gaps
 if ~isempty(gid)
     onidx = [onidx(1); onidx(gid+1)];
     offidx = [offidx(gid); offidx(end)];
-    
-    onidx2 = [onidx2(1); onidx2(gid+1)];
-    offidx2 = [offidx2(gid); offidx2(end)];
-    
+
 else
     onidx = onidx(1);
     offidx = offidx(end);
@@ -190,7 +187,7 @@ end
 % syllable duration threholding (turn to real time)
 dur = tvec(offidx)-tvec(onidx);
 
-did = find(params.durmin<=dur & dur<=params.durmax); % okay syllable sizes
+did = find(params.durmin<=dur & dur<=params.durmax); % okay phrase size
 duronidx = onidx(did);
 duroffidx = offidx(did);
 
@@ -208,49 +205,42 @@ end
 onsetm = onset-params.margin;
 offsetm = offset+params.margin;
 
-onsetm(1) = max(1/params.fs*step,onsetm(1)); % cant go earlier than first tic
-offsetm(end) = min(max(size(thrshd,2)*step/params.fs),offsetm(end));     % or longer then file
+onsetm(1) = max(params.tvec(1),onsetm(1)); % cant go earlier than first tic
+offsetm(end) = min([params.tvec(end),offsetm(end)]);     % or longer then file
 % output 
 onoffset = [onset' offset'];
 onoffsetm = [onsetm' offsetm'];
 
 verbose=0;
 if verbose
-    viewin=[1:10000];
+    viewin=[1:100000];
     % here is the plot for it all
     figure; sp=subplot(4,1,1);
-    imagesc(thrshd(:,viewin));
+    imagesc(params.tvec(viewin),params.fvec,thrshd(:,viewin));
     sp(2)=subplot(4,1,2);
-    plot(onoff(viewin)*.5);
-    hold on;
-    plot(f(viewin));
+   
+    imagesc(params.tvec(viewin),params.fvec,blobthrshd(:,viewin));
     legend('ononff','f')
     sp(3)=subplot(4,1,3);
-    plot(monoff(viewin));
+    plot(params.tvec(viewin),monoff(viewin));
     legend('monoff')
     sp(4)=subplot(4,1,4);
-    tinds=zeros(size(monoff));
-    tinds(onidx)=1; tinds(offidx)=-1;
-    mytemp=cumsum(tinds);
-    plot(mytemp(viewin));
-    hold on; 
-    tinds=zeros(size(monoff));
-    tinds(duronidx)=1; tinds(duroffidx)=-1;
-    mytemp=cumsum(tinds);
-    plot(mytemp(viewin));
+    plot([tvec(onidx); tvec(offidx)],ones(2,length(onidx))*.5,'LineWidth',4);
+    hold on;
+    plot(onoffset',ones(2,length(onoffset)),'LineWidth',4);
+    set(gca,'Ylim',[0 1.5]);
     linkaxes(sp,'x'); legend('gaponoff','duronoff');
     % convert back to indices, for no real reason...
 end
 
 % on/off signal
-temp = zeros(size(onoff));
+blobraw = zeros(size(onoff));
 
-onidx2 = round((onset*params.fs)/step);
-% really not sure why hes adding to this fftsize... does he think its 
-offidx2 = round((offset*params.fs)/step+1);
-temp(onidx2) = 1;
-temp(offidx2+1) = -1;
-onoffsig = cumsum(temp); % throwaway variable, it has overlaps...
+
+
+blobraw(onidx) = 1;
+blobraw(offidx+1) = -1;
+onoffsig = cumsum(blobraw); % throwaway variable, it has overlaps...
 end
 
 

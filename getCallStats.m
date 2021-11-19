@@ -100,27 +100,42 @@ for id=1:height(Calls)
     end
 
     allcallidx=cell2mat({callblobs.PixelList}');
-
-
+    
+    %
+    % here i need to generate a registered image
+    % i'm thinking a smoothed bw with the x size of max call size
+    % remember to rescale, uint8 it and multiply by 256 to save space
+    % probably resize to something like whatever the smallest call would
+    % take up two x pixels
+    % cstats.spect=resize(SmoothMat2(spect,[15,30],[3 6]),[64 64]);
+    % or use bw and you can keep the data high dimensional...
+    
     % now that we have our legit blobs, lets get some stats here...
+
+    % first load our initial data
+    % smooth over ~1msec and 1200 hz, resize to standard image
+   
     cstats.nSyll(id)=size(callblobs,1);
+
 
     cstats.maxFreq(id)=params.fvec(find(sum(callBW,2)>0,1,'last')); % max frequency 
     [~,maxind]=max(find(callBW>0,1,'last')); % find last element in each col thats  1
-    cstats.maxFreqInd=maxind/size(callBW,2);
+    cstats.maxFreqInd(id)=maxind/size(callBW,2);
     cstats.minFreq(id)=params.fvec(find(sum(callBW,2)>0,1,'first')); % min frequency
     [~,minind]=max(find(callBW>0,1,'first')); % find last element in each col thats  1
-    cstats.minFreqInd=minind/size(callBW,2);
+    cstats.minFreqInd(id)=minind/size(callBW,2);
     cstats.FreqSpread(id)=cstats.maxFreq(id)-cstats.minFreq(id); % freq spread in hz
     [histy]=histcounts(params.fvec(allcallidx(:,2)),histbins); % spectrogram overall, normalized to 0-1
-    cstats.specGram(id,:)=histy/max(histy); % this lets secondary peaks shine
+
+
+    %cstats.specGram(id,:)=histy/max(histy); % this lets secondary peaks shine
     [~,modeind]=max(histy); 
     cstats.freqMode(id)=freqhist(modeind); % histogram freq that is most common
 
     [cstats.maxIntensity(id),maxpos]=max(callIM(:)); % max intensity, time pos of max intensity
     cstats.maxIntensityF(id)=params.fvec(rem(maxpos,size(callIM,1))); % freq at max intensity
     cstats.maxIntensityT(id)=floor(maxpos/size(callIM,1))/size(callIM,2); % %% of time of call at max intensity
-    cstats.MeanIntensity(id)=mean(callIM(:),'omitnan'); % mean intensity of spline
+    
 
     % build a spline
     [~,splineinds]=max(callIM); 
@@ -129,7 +144,7 @@ for id=1:height(Calls)
     mdl=fitlm((1:sum(~isnan(splinefreqs)))*tstep,splinefreqs(~isnan(splinefreqs))');
     
     cstats.callSlope(id)=mdl.Coefficients.Estimate(2);
-    cstats.callCenter(id)=mdl.Coefficients.Estimate(1);
+    %cstats.callCenter(id)=mdl.Coefficients.Estimate(1);
 
     % max instantaneous slope, max jump slope, mean freq dev (in spline)
     % mean abs freq dev in spline
@@ -142,27 +157,29 @@ for id=1:height(Calls)
     
     splineReal=splineinds; splineReal(splineReal==1)=nan; % mea
 
-    cstats.maxSplineFreq(id)=params.fvec(max(splineinds));
-    cstats.minSplineFreq(id)=params.fvec(min(splineReal));
+    % same as freq
+    %cstats.maxSplineFreq(id)=params.fvec(max(splineinds));
+    %cstats.minSplineFreq(id)=params.fvec(min(splineReal));
 
 
     % now per blob
     % max blob mean slope, min blob mean slope, max abs slope, mean in
     % syllable spread (f)
-    % lets use the real slope here not the oval
-    %cstats.maxSyllSlope(id)=max(cell2mat({callblobs.Orientation})); % max within syll slope
-    %cstats.minSyllSlope(id)=min(cell2mat({callblobs.Orientation})); % min within syll slope (overall slope)
-    %cstats.maxAbsSyllSlope(id)=max(abs(cell2mat({callblobs.Orientation}))); % max abs blob orientation
-    
+
     % create coords
     bitCoords=ceil(cell2mat({callblobs.BoundingBox}'));
-    bitLengths=bitCoords(:,3)-1; 
-    cstats.longestSyll(id)=max(bitLengths)/(offsetI-onsetI); % as a %% of time
-    cstats.shortestSyll(id)=min(bitLengths)/(offsetI-onsetI); % as a %% of time
-    cstats.longestSyllSec(id)=max(bitLengths)*tstep; % in seconds
-    cstats.shortestSyllSec(id)=min(bitLengths)*tstep; % in seconds
-    
-    
+    bitWidth=bitCoords(:,3)-1; 
+    cstats.longestSyll(id)=max(bitWidth)/(offsetI-onsetI); % as a %% of time
+    cstats.shortestSyll(id)=min(bitWidth)/(offsetI-onsetI); % as a %% of time
+    cstats.longestSyllSec(id)=max(bitWidth)*tstep; % in seconds
+    cstats.shortestSyllSec(id)=min(bitWidth)*tstep; % in seconds
+    bitHeight=bitCoords(:,4)-1;
+
+    cstats.tallestSyll(id)=max(bitHeight)/(offsetI-onsetI);
+    cstats.shortestSyll(id)=min(bitHeight)/(offsetI-onsetI);
+    cstats.tallestSyllHz(id)=max(bitHeight)*tstep;
+    cstats.shortestSyllHz(id)=min(bitHeight)*tstep;
+
     cstats.ngaps(id)=sum(diff(splineinds>1)~=0)/2-1; % number of gaps inbetween call sylls
     
     % I see alot of harmonics that are just overlapping the lower freq, how
@@ -220,8 +237,6 @@ for id=1:height(Calls)
     cstats.meanSyllSlope(id)=mean(mySyll.Slope);
     cstats.meanSyllConcavity(id)=mean(mySyll.Concavity);
 
-    cstats.tallestSyll(id)=max(mySyll.Height);
-    cstats.shortestSyll(id)=min(mySyll.Height);
     
 
     % concavity (this is a stretch but i think i can do it
@@ -249,6 +264,32 @@ for id=1:height(Calls)
 end
 
 cstats=cstats(Calls.Accept==1,:); Calls=Calls(Calls.Accept==1,:); 
+
+% nouw build an imagestore of the call
+
+% 1. find the center of the call in the x domain
+
+% 2.  go back and forward to the call, add 10% on to the ends
+ 
+% 3. fuzzy up the image
+
+% 4. save the image as a greyscale png (repmat(data,1,1,3))
+
+% 5. convert to a linearized m images by n pixels array or csv file.
+
+% 6. make sure you have a pointer to that image in your call
+
+
+
+
+
+
+
+
+
+
+
+
 %{
 callstats2=cstats;
 callstats2.specGram=[];

@@ -53,8 +53,10 @@ params=struct('fs',audiodata.SampleRate,'timewin',timewin);
 
 % HARDCODED PARAMETERS:
 winsize=.0008;
+% bins in a window
 winbins=round(audiodata.SampleRate*winsize);
-stepsize=round(winbins/2); % use a 2x overlap
+% bins in a step
+stepbins=round(winbins/2); % use a 2x overlap
 
 
 
@@ -64,8 +66,8 @@ params.timestep=params.winsize/2; % will always round when converting to indices
 
 % call settings
 params.freqmin = 15000; params.freqmax = 90000;
-params.threshval = 2.1;   params.durmin = 0.002;  params.durmax = 0.6;
-params.gapmin = 0.030;    params.margin = params.gapmin/2;  
+params.threshval = 2.2;   params.durmin = 0.003;  params.durmax = 0.6;
+params.gapmin = 0.025;    params.margin = params.gapmin/2;  
 
 
 % Make the spectrogram

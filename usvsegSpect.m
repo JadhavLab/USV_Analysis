@@ -27,7 +27,7 @@ gpuDevice(1);
 nsegments=ceil(diff(params.timewin)/30);
 tbins=linspace(0,min([180 audiodata.Duration]),nsegments+1);
 tbins=[tbins(1:end-1)' tbins(2:end)'];
-tbins=tbins*audiodata.SampleRate; tbins(:,1)=tbins(:,1)+1;
+tbins=round(tbins*audiodata.SampleRate); tbins(:,1)=tbins(:,1)+1;
 
 useGPU=1;
 if useGPU % need to figure out how to use the gpu on ths
