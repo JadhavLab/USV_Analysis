@@ -114,10 +114,10 @@ for i=427:length(wavfilenames)
     sessdata=rmfield(fileinfo(i),{'bytes','isdir'});
     myfilename=sessdata.name;
     unders=find(myfilename=='_' | myfilename=='-');
-    sessdata.cohort=str2double(myfilename(2:unders(1)-1)); % cohort
-    sessdata.age=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
+    sessdata.Cohort=str2double(myfilename(2:unders(1)-1)); % cohort
+    sessdata.Age=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
     % pull rat name from file name
-    sessdata.ratname=myfilename(unders(2)+1:end-4);
+    sessdata.Ratname=myfilename(unders(2)+1:end-4);
     
     [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
     % spect is the flattened centered im, thrshd is the pix that pass
@@ -148,52 +148,139 @@ end
 % first generate the input dataset.
 % this time try the black and white images
 inputfolder=uigetdir('Select folder of usvSeg Data');
-statfiles=getAllFiles(inputfolder);
+statfiles=dir(inputfolder);
+statfiles=statfiles(~[statfiles.isdir]);
+load('USVmetadataC1-9.mat');
+USVrecordings=mergevars(USVrecordings,{'Animal','EarMarkings','LegMarkings','ToeMarkings'},'NewVariableName','Aliases');
 
+USVlegend=table;
+for i=1:length(statfiles)
+    filedata=statfiles(i);
+    % attach metadata to each stat file;
+    sessdata=rmfield(filedata,{'bytes','isdir'});
+    myfilename=sessdata.name;
+    unders=find(myfilename=='_' | myfilename=='-');
+    sessdata.cohort=str2double(myfilename(2:unders(1)-1)); % cohort
+    sessdata.age=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
+    % pull rat name from file name
+    sessdata.ratname=string(myfilename(unders(2)+1:unders(3)-1));
+    sessdata.name=string(sessdata.name);
+    % now match my animal
+    sameCohort=USVrecordings.Cohort==sessdata.cohort;
+    sameName=contains([USVrecordings.Aliases],sessdata.ratname,'IgnoreCase',true);
+    sameRat=find(sum([sameCohort sameName],2)>1);
+    if length(sameRat)==1
+        filedata=[struct2table(sessdata) USVrecordings(sameRat,:)];
+    elseif length(sameRat)>1
+       fprintf('Ran into multiple matches for %d %s \n', sessdata.cohort,sessdata.ratname);
+       fprintf('   %s \n',USVrecordings.Aliases(sameRat,:)');
+       fprintf('Choosing first \n \n')
+       filedata=[struct2table(sessdata) USVrecordings(sameRat(1),:)];
+    else
+       fprintf('Ran into no matches for %d %s \n', sessdata.cohort,sessdata.ratname);
+    end
+    USVlegend(i,:)=filedata;
+end
+
+%%
+
+% lets take just the males, and just between P4 to P10
 % this is hardcoded for now, but suffice to say its going to be 600 msec
 % images from 15 khz to 90 khz
-allcalls=[];
+runSess=USVlegend(lower(USVlegend.Sex)=='m' & USVlegend.age<13,:);
+allcalls=[]; allCallinfo=[];
 wb=waitbar(0,'concatenating ALL the images');
 % what percentage of images will we need to classify these guys????
 % probably like half
 bigclock=tic;
-for i=1:length(statfiles)
+for i=1:height(runSess)
     smallclock=tic;
-    load(statfiles{i},'blobs','segCalls','params');
+    load(fullfile(runSess.folder(i,:),runSess.name(i)),'blobs','segCalls','params');
     okfreqs=params.fvec>15000 & params.fvec<90000;
     badcalls=segCalls.onsetTime<5 | segCalls.offsetTime>min([180 size(blobs,2)*params.timestep])-5;
     segCalls=segCalls(~badcalls,:);
-    mycalls=false(128,128,height(segCalls));
+    mycalls=false(128,128,1,height(segCalls));
     callcenters=mean(table2array(segCalls(:,1:2)),2);
     centerinds=interp1(params.tvec,1:length(params.tvec),callcenters,'nearest');
     calldurs=(segCalls.offsetTime-segCalls.onsetTime)/params.timestep;
     
     % go forward 200 msec, and forward 200 msec, then resize to 256
     for j=1:length(callcenters)
-
-        % were going from 1000 to 128
-        mycalls(:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
-       
-        %mycalls(:,:,j)=imresize(blobs(okfreqs,centerinds(j)-round(.2/params.timestep):centerinds(j)+round(.2/params.timestep)),[128,128]);
+    
+        % were going from many to 128x128 x 1 images
+        mycalls(:,:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
     end
-    allcalls=cat(3,allcalls,mycalls);
-    waitbar(i/length(statfiles),wb,sprintf('Has taken %d mins, will prolly go %d more mins',...
-    round(toc(largeclock)/60),round(toc(smallclock)/60)));
+    allCallinfo=[allCallinfo; [calldurs ones(size(calldurs,1),1)*i (1:length(calldurs))']]; % add call duration, then the sessnum and callnum
+    allcalls=cat(4,allcalls,mycalls);
+    waitbar(i/height(runSess),wb,sprintf('Has taken %d mins, will prolly go %d more mins',...
+    round(toc(bigclock)/60),round(toc(smallclock)/60*(height(runSess)-i))));
 end
+close(wb);
 
+%%
+% use create_tsne callback to generate this code
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% USE [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % now run the encoder decoder...
 % Load the network model
 [encoderNet, decoderNet] = VAE_model();
 
-images = dlarray(mycalls, 'SSCB');
+% data are
+
+% build encoder from a set stack size... not sure how much it can handle...
+randpull=randperm(size(allCallinfo,1));
+pullsize=20000; % start with twenty thousand
+imageInfo=allCallinfo(randpull(1:pullsize),:);
+
+
+images = dlarray(allcalls(:,:,:,randpull(1:pullsize)), 'SSCB');
+
+
 
 % Divide the images into training and validation
-[trainInd,valInd] = dividerand(size(ClusteringData, 1), .9, .1);
+[trainInd,valInd] = dividerand(size(images,4), .9, .1);
 XTrain  = images(:,:,:,trainInd);
 XTest   = images(:,:,:,valInd);
 
 % Train the network
 [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
+
+% now pull all the image data
+myblocks=[[1 pullsize+1:pullsize:size(allCallinfo,1)]' [pullsize:pullsize:size(allCallinfo,1) size(allCallinfo,1)]' ];
+alldata=[];
+for i=1:size(myblocks,1)
+% now extract the low dimensional data
+[~, zMean] = sampling(encoderNet, images(:,:,:,myblocks(i,1):myblocks(i,2)));
+zMean = stripdims(zMean)';
+zMean = gather(extractdata(zMean));
+data = double(zMean);
+alldata=[alldata; data];
+end
+% and we already have the original imageinfo
+allimageShort=[alldata imageInfo(:,1)];
+
+% now add classes (age, or genotype) and image it
+
+
+
+
+% now reform this and get some preliminary results?
+data=[data imageInfo(:,1)]; % tack on call duration
+
+% then yu can run tsne or umap on this and cluster
+
+
+
+%{
+moving forward;
+- use vae to turn the calls into parameterized images
+
+
+
+%}
+
 %% using deepsqueak...
 callfiledir='G:\USV data\Detections';
 if ~isfolder(callfiledir)
