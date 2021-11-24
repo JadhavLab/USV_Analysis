@@ -1,30 +1,39 @@
-function [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack)
+function [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack,encoderNet,decoderNet,verbose)
 % Stolen somewhat from deepsqueak, but its also just using the matlab how
-% to
-
-% make sure calls are xpix by y pix by 1 by ncalls (third dim is color)
-[encoderNet, decoderNet] = VAE_model();
+% to Variational AutoEncoder function
 
 % data are
 allcalls=imageStack;
 
-% take random values
-randpull=randperm(size(allcalls,4));
-pullsize=10000; % start with ten thousand
-%imageInfo=allCallinfo(randpull(1:pullsize),:);
+
+% if we dont already have our net, build one from a random bit of these
+% data
+
+if ~exist('encoderNet','var') || ~exist('decoderNet','var')
+    encoderNet=[]; decoderNet=[];
+end
+
+if ~exist('verbose','var'), verbose=0; end
+
+images = dlarray(allcalls, 'SSCB');
+    % Divide the images into training and validation
+    [trainInd,valInd] = dividerand(size(images,4), .9, .1);
+    XTrain  = images(:,:,:,trainInd);
+    XTest   = images(:,:,:,valInd);
+
+if isempty(encoderNet) ||isempty(decoderNet)
+    % make sure calls are xpix by y pix by 1 by ncalls (third dim is color)
+    [encoderNet, decoderNet] = VAE_model();    
+    % Train the network
+    [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
+end
 
 
-images = dlarray(allcalls(:,:,:,randpull(1:pullsize)), 'SSCB');
+if ~isempty(verbose) && verbose~=0
+    % lets show the encoder and decoder reconstruct some images first
+    visualizeReconstruction(XTest,10, encoderNet, decoderNet);
+end
 
-% Divide the images into training and validation
-[trainInd,valInd] = dividerand(size(images,4), .9, .1);
-XTrain  = images(:,:,:,trainInd);
-XTest   = images(:,:,:,valInd);
-
-% Train the network
-[encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
-
-% now pull 
 
 % now extract the low dimensional data
 [~, zMean] = sampling(encoderNet, images);
@@ -62,7 +71,7 @@ encoderLG = layerGraph([
     batchNormalizationLayer('Name', 'bnorm4')
     reluLayer('Name','relu4')
     
-        fullyConnectedLayer(1024, 'Name', 'fc_1')
+    fullyConnectedLayer(1024, 'Name', 'fc_1')
     reluLayer('Name','relu5')
 
     fullyConnectedLayer(2 * latentDim, 'Name', 'fc_encoder')
@@ -223,7 +232,7 @@ end
 
 
 
-function visualizeLatentSpace(XTest, YTest, encoderNet)
+function visualizeLatentSpace(XTest, encoderNet)
 [~, zMean, zLogvar] = sampling(encoderNet, XTest);
 
 zMean = stripdims(zMean)';
@@ -246,14 +255,12 @@ ah.YDir = 'reverse';
 axis equal
 xlabel("Z_m_u(2)")
 ylabel("Z_m_u(1)")
-cb = colorbar; cb.Ticks = 0:(1/9):1; cb.TickLabels = string(0:9);
 
 ah = subplot(1,2,2);
 scatter(scoreLogvar(:,2),scoreLogvar(:,1),[]);
 ah.YDir = 'reverse';
 xlabel("Z_v_a_r(2)")
 ylabel("Z_v_a_r(1)")
-cb = colorbar;  cb.Ticks = 0:(1/9):1; cb.TickLabels = string(0:9);
 axis equal
 end
 
@@ -265,6 +272,56 @@ generatedImage = extractdata(generatedImage);
 f3 = figure;
 figure(f3)
 imshow(imtile(generatedImage, "ThumbnailSize", [100,100]))
-title("Generated samples of digits")
+title("Generated random samples")
 drawnow
 end
+
+%{
+notes
+this is the scripting that was used to generate this function.
+
+
+[encoderNet, decoderNet] = VAE_model();
+
+% data are
+
+% build encoder from a set stack size... not sure how much it can handle...
+randpull=randperm(size(allCallinfo,1));
+pullsize=20000; % start with twenty thousand
+imageInfo=allCallinfo(randpull(1:pullsize),:);
+
+
+images = dlarray(allcalls(:,:,:,randpull(1:pullsize)), 'SSCB');
+
+
+
+% Divide the images into training and validation
+[trainInd,valInd] = dividerand(size(images,4), .9, .1);
+XTrain  = images(:,:,:,trainInd);
+XTest   = images(:,:,:,valInd);
+
+% Train the network
+[encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
+
+% now pull all the image data
+myblocks=[[1 pullsize+1:pullsize:size(allCallinfo,1)]' [pullsize:pullsize:size(allCallinfo,1) size(allCallinfo,1)]' ];
+alldata=[];
+for i=1:size(myblocks,1)
+% now extract the low dimensional data
+[~, zMean] = sampling(encoderNet, images(:,:,:,myblocks(i,1):myblocks(i,2)));
+zMean = stripdims(zMean)';
+zMean = gather(extractdata(zMean));
+data = double(zMean);
+alldata=[alldata; data];
+end
+% and we already have the original imageinfo
+allimageShort=[alldata imageInfo(:,1)];
+
+% now add classes (age, or genotype) and image it
+
+
+
+
+% now reform this and get some preliminary results?
+data=[data imageInfo(:,1)]; % tack on call duration
+%}

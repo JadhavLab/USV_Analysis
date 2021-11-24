@@ -220,66 +220,95 @@ close(wb);
 %%
 % use create_tsne callback to generate this code
 
+edit generate_VAE_encoder
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% USE [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % now run the encoder decoder...
 % Load the network model
-[encoderNet, decoderNet] = VAE_model();
-
-% data are
-
-% build encoder from a set stack size... not sure how much it can handle...
-randpull=randperm(size(allCallinfo,1));
-pullsize=20000; % start with twenty thousand
-imageInfo=allCallinfo(randpull(1:pullsize),:);
-
-
-images = dlarray(allcalls(:,:,:,randpull(1:pullsize)), 'SSCB');
-
-
-
-% Divide the images into training and validation
-[trainInd,valInd] = dividerand(size(images,4), .9, .1);
-XTrain  = images(:,:,:,trainInd);
-XTest   = images(:,:,:,valInd);
-
-% Train the network
-[encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
-
-% now pull all the image data
-myblocks=[[1 pullsize+1:pullsize:size(allCallinfo,1)]' [pullsize:pullsize:size(allCallinfo,1) size(allCallinfo,1)]' ];
-alldata=[];
-for i=1:size(myblocks,1)
-% now extract the low dimensional data
-[~, zMean] = sampling(encoderNet, images(:,:,:,myblocks(i,1):myblocks(i,2)));
-zMean = stripdims(zMean)';
-zMean = gather(extractdata(zMean));
-data = double(zMean);
-alldata=[alldata; data];
-end
-% and we already have the original imageinfo
-allimageShort=[alldata imageInfo(:,1)];
-
-% now add classes (age, or genotype) and image it
-
-
-
-
-% now reform this and get some preliminary results?
-data=[data imageInfo(:,1)]; % tack on call duration
 
 % then yu can run tsne or umap on this and cluster
+% first will need to pull a random set of usvs to generate our model.  This
+% is throttled by the size of the gpu i guess...
+
+batchsize=20000; 
+
+% 1. generate random sampling
+randpull=randperm(size(allcalls,4));
+trainingstack=allcalls(:,:,:,randpull(1:batchsize));
+
+% 2. build encoder and decoder using those images
+[encoderNet,decoderNet,data] = generate_VAE_encoder(trainingstack);
+
+clear trainingstack;
+% 3. run the encoder throguh ALL images
+batchinds=[[1 batchsize+1:batchsize:size(allcalls,4)]' [batchsize:batchsize:size(allcalls,4) size(allcalls,4)]'];
+callData=[];
+for i=1:size(batchinds,1)
+    [~,~,batchData]=generate_VAE_encoder(allcalls(:,:,:,batchinds(i,1):batchinds(i,2)),encoderNet,decoderNet,1);
+    callData=[callData; batchData];
+end
+
+% 4. put the callduration back in
+% 32 dims, 33rd is callduration, and allCallinfo is session and call number
+% from runSess;
+callData=[callData allCallinfo(:,1)];
+
+% 5. see if any of these predict genotype
+% gather our genotypes
+for i=1:max(allCallinfo(:,2))
+    allCallinfo(allCallinfo(:,2)==i,4)=contains(runSess.Genotype(i),'fx');
+end    
+
+
+[b]=fitglm(callData,allCallinfo(:,4));
+
+% 6. if not, cluseter calls, see if one genotype dominates one cluster, or
+% whether one call varies by genotype
+mycolors=lines(2);
+for i=2: size(callData,2)
+    for j=1:i-1
+        figure;
+        scatter(callData(:,i),callData(:,j+6),4,mycolors(allCallinfo(:,4)+1,:),'filled');
+    end
+end
 
 
 
+%% try tsne on these animals
+% some very basic questions:
 %{
-moving forward;
-- use vae to turn the calls into parameterized images
-
+1. do these calls cluster at all in any way
+2. do these calls stratify by.... animal, genotype, time....
 
 
 %}
+
+%% or umap
+if ~contains(path,'C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap')
+    addpath(genpath('C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap'));
+end
+[embed2,umap2,clusterid] = run_umap(data);
+rmpath(genpath('C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap'));
+%%
+ratNames=string();
+for i=1:length(allCallinfo)
+    ratNames(i)=runSess.Aliases(allCallinfo(i,2),1);
+end
+[a,b,c]=unique(ratNames);
+mycolors=parula(length(a));
+for perplexity=1:8
+embed = tsne(callData,'Verbose',1,'Perplexity',perplexity*4+16);
+
+embed = (embed - min(embed)) ./ (max(embed)-min(embed));
+embedY = 1-embed(:,2); % flip Y coordinates so the images looks like the UMAP figure
+embedX = embed(:,1);
+
+figure;
+scatter(embedY,embedX,5,mycolors(c,:),'filled');
+title(sprintf('perplexity %d', perplexity*6));
+end
 
 %% using deepsqueak...
 callfiledir='G:\USV data\Detections';
