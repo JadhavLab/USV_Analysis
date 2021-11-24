@@ -166,10 +166,12 @@ for epoch = 1:numEpochs
     if ~isvalid(h)
         return
     end
-    
+    % get your z values (your latent dims)
     [z, zMean, zLogvar] = sampling(encoderNet, XTest);
-    forward(encoderNet, XTest);
-    xPred = sigmoid(forward(decoderNet, z));
+    forward(encoderNet, XTest); % pass forward again?
+    % now predict your test images from the z
+    xPred = sigmoid(forward(decoderNet, z)); % predict your images
+    % get the average differencde between the two
     elbo = ELBOloss(XTest, xPred, zMean, zLogvar);
     
     % Update figure and print results
@@ -187,29 +189,59 @@ zMean = compressed(1:d,:);
 zLogvar = compressed(1+d:end,:);
 
 sz = size(zMean);
-epsilon = randn(sz);
-sigma = exp(.5 * zLogvar);
-z = epsilon .* sigma + zMean;
-z = reshape(z, [1,1,sz]);
-zSampled = dlarray(z, 'SSCB');
+epsilon = randn(sz); % get rand normally distributed (will be standard z)
+sigma = exp(.5 * zLogvar); % get your variance
+z = epsilon .* sigma + zMean; % basically reshape your z distrib
+z = reshape(z, [1,1,sz]); % reshape these variables by dimension
+% this basically will allow you to generate a sample of data points, so
+% that you can get a conditional distribution of real values, given a
+% distribution of answers, this is the bayes part
+
+zSampled = dlarray(z, 'SSCB'); % send into your dlarray
 end
 
 function [infGrad, genGrad] = modelGradients(encoderNet, decoderNet, x)
 [z, zMean, zLogvar] = sampling(encoderNet, x);
 xPred = sigmoid(forward(decoderNet, z));
-loss = ELBOloss(x, xPred, zMean, zLogvar);
+loss = ELBOloss(x, xPred, zMean, zLogvar);% the loss is the kl divergence % 
 [genGrad, infGrad] = dlgradient(loss, decoderNet.Learnables, ...
     encoderNet.Learnables);
 end
 
+%%%%% LOSS FUNCTION STUFF %%%%%
+
+% elbo loss: −LVAE=logpθ(x)−DKL(qϕ(z|x)∥pθ(z|x))
+
+% when b=1 its the normal ELBO function. when b>1, it splits the bariables.
+%
+% beta vae loss: LBETA(ϕ,β)=−Ez∼qϕ(z|x)logpθ(x|z)+βDKL(qϕ(z|x)∥pθ(z))
+% where the addition is the Ez~qw(z|x)
+
+
+% this is the loss function, 
+% which is where you would compute beta
+
+% this estimates the kullback-leibler divergence
+%  math: Dkl= real distrib (imges given vector) ||(similarity) estimated
+%  distrib(images given vector)
+% the key here is that you can calculate the real
+
+
+
 function elbo = ELBOloss(x, xPred, zMean, zLogvar)
 squares = 0.5*(xPred-x).^2;
-reconstructionLoss  = sum(squares, [1,2,3]);
+reconstructionLoss  = sum(squares, [1,2,3]); % e.g. likelihood of generating the data you did
 
-KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1);
+KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1); % kl which is 
 
+% elbo= evidence lower bound
 elbo = mean(reconstructionLoss + KL);
 end
+
+
+
+
+
 
 function visualizeReconstruction(XTest,nRecons, encoderNet, decoderNet)
 

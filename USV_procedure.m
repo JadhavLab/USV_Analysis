@@ -139,7 +139,7 @@ end
 % the next step i think would be to get all the binary images and turn them
 % into a smaller vector (like they do in deepsqueak using a vae)
 
-%% now to drop these into smaller dimensions
+%% now to drop these into smaller dimensions using a VAE
 
 % i will generate a new latentscore variable for each day that is the vae
 % deconstruction of the data.  I'll have to save the vae encoder and
@@ -168,6 +168,7 @@ for i=1:length(statfiles)
     % now match my animal
     sameCohort=USVrecordings.Cohort==sessdata.cohort;
     sameName=contains([USVrecordings.Aliases],sessdata.ratname,'IgnoreCase',true);
+    % find this rat, and then add its info
     sameRat=find(sum([sameCohort sameName],2)>1);
     if length(sameRat)==1
         filedata=[struct2table(sessdata) USVrecordings(sameRat,:)];
