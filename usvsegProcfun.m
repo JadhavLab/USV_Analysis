@@ -67,6 +67,9 @@ fnmax= find(params.fvec>params.freqmax,1,'first');
 mask = zeros(size(fltnd));
 mask(fnmin:fnmax,:) = 1;
 thrshd = (fltnd>thresh).*mask;
+
+
+
 end
 
 
@@ -117,6 +120,7 @@ f = filter(ones(ndurmin,1)/ndurmin,1,[onoff;zeros(round(ndurmin/2),1)]);
 % remove blobs that are too short (half the min syll length)
 blobs=blobs(cellfun(@(a) a(3)>ndurmin, {blobs.BoundingBox}),:);
 
+
 % i think we should do a size threshold, say there has to be many positive
 % pixels in the large neighborhood- small calls are getting through
 % something like index say the min call size x and up and down say 40k hz
@@ -147,7 +151,6 @@ monoff(end) = onoff(end); %??
 onidx = find(diff(monoff)>0)+1; %
 offidx = find(diff(monoff)<0)+1; % 
 
-% fix if empty or edges are problematic
 if isempty(onidx)||isempty(offidx)
     onoffset = zeros(0,2);
     onoffsetm = zeros(0,2);
@@ -165,7 +168,6 @@ end
 % continuity flag: check if the end of read file is "ON"
 contflg = monoff(end);
 
-
 tvec = params.tvec; 
 
 
@@ -174,11 +176,11 @@ tvec = params.tvec;
 gap = tvec(onidx(2:end)) - tvec(offidx(1:end-1)); % use real time here
 gid = find(gap>params.gapmin); % keep startstop that are wider than gap
 
+
 % this will delete the stop before and th start after short gaps
 if ~isempty(gid)
     onidx = [onidx(1); onidx(gid+1)];
     offidx = [offidx(gid); offidx(end)];
-
 else
     onidx = onidx(1);
     offidx = offidx(end);
@@ -201,12 +203,14 @@ if isempty(onset)||isempty(offset)
     contflg = 0;
     return;
 end
+
 % margin addition (onto front and back just under half the min window size)
 onsetm = onset-params.margin;
 offsetm = offset+params.margin;
-
 onsetm(1) = max(params.tvec(1),onsetm(1)); % cant go earlier than first tic
 offsetm(end) = min([params.tvec(end),offsetm(end)]);     % or longer then file
+
+
 % output 
 onoffset = [onset' offset'];
 onoffsetm = [onsetm' offsetm'];
@@ -218,8 +222,10 @@ if verbose
     figure; sp=subplot(4,1,1);
     imagesc(params.tvec(viewin),params.fvec,thrshd(:,viewin));
     sp(2)=subplot(4,1,2);
-   
     imagesc(params.tvec(viewin),params.fvec,blobthrshd(:,viewin));
+    plot(params.tvec(viewin),onoff(viewin)*.5);
+    hold on;
+    plot(params.tvec(viewin),f(viewin));
     legend('ononff','f')
     sp(3)=subplot(4,1,3);
     plot(params.tvec(viewin),monoff(viewin));
@@ -229,18 +235,33 @@ if verbose
     hold on;
     plot(onoffset',ones(2,length(onoffset)),'LineWidth',4);
     set(gca,'Ylim',[0 1.5]);
+    tinds=zeros(size(monoff));
+    tinds(onidx)=1; tinds(offidx)=-1;
+    mytemp=cumsum(tinds);
+    plot(params.tvec(viewin),mytemp(viewin));
+    hold on; 
+    tinds=zeros(size(monoff));
+    tinds(duronidx)=1; tinds(duroffidx)=-1;
+    mytemp=cumsum(tinds);
+    plot(params.tvec(viewin),mytemp(viewin));
     linkaxes(sp,'x'); legend('gaponoff','duronoff');
     % convert back to indices, for no real reason...
 end
 
 % on/off signal
 blobraw = zeros(size(onoff));
-
-
-
 blobraw(onidx) = 1;
 blobraw(offidx+1) = -1;
+
 onoffsig = cumsum(blobraw); % throwaway variable, it has overlaps...
+
+% % on/off signal
+% temp = zeros(size(onoff));
+% temp(onidx) = 1;
+% temp(offidx+1) = -1;
+% 
+% onoffsig = cumsum(temp);
+
 end
 
 
