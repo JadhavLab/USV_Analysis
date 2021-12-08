@@ -286,7 +286,7 @@ public class ToolTipOnDemand
 		}
 	});
   }
-  private static Border empty=BorderFactory.createEmptyBorder(4, 0, 0, 0) ;
+  private static Border empty=BorderFactory.createEmptyBorder(1, 0, 0, 0) ;
   public boolean left2Right=false;
   public void show(
       final JComponent component,
@@ -311,10 +311,7 @@ public class ToolTipOnDemand
     	  }
       }
       final boolean emptyTxt=toolTipText.equals("<html></html>");
-      if (emptyTxt){
-    	  //System.out.println("Empty tooltip?");
-      }
-
+      
       final Point preferredLocation = new Point(widthOffset, heightOffset); // manual set
       if (enabled) {
           Window componentWindow = SwingUtilities.windowForComponent(insideComponent);
@@ -347,20 +344,17 @@ public class ToolTipOnDemand
         	  jp.add(tip, BorderLayout.CENTER);
           }
           jp.setBackground(tip.getBackground());
-          if (toolTipText!=null){
-        	  //jp.setBorder(BORDER_MAJOR);
-          }
-          if (anyComponentYouWant != null) {
+            if (anyComponentYouWant != null) {
               if (westPanel != null){
                   westPanel.setBackground(tip.getBackground());
                   westPanel.setOpaque(true);
                   jp.add(westPanel, BorderLayout.EAST);
               }
-              final JPanel jp2 = new JPanel();
+              final JPanel jp2 = new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));
               if (!emptyTxt){
             	  //System.out.println("extra component ...");
-            	  jp2.setBorder(BorderFactory.createEmptyBorder(0,0,7,0));
-          }
+            	  jp2.setBorder(BorderFactory.createEmptyBorder(0,0,1,0));
+              }
               if (! (anyComponentYouWant instanceof JButton)){
             	  anyComponentYouWant.setBackground(tip.getBackground());
             	  if (anyComponentYouWant instanceof JComponent){
@@ -376,7 +370,7 @@ public class ToolTipOnDemand
             	  jp.add(jp2, BorderLayout.SOUTH);
               }
           } 
-          final JPanel jp3 = new JPanel(new BorderLayout());
+          final JPanel jp3 = new JPanel(new BorderLayout(0,0));
           jp3.setBackground(tip.getBackground());
           jp3.setOpaque(true);
           
@@ -728,7 +722,7 @@ public class ToolTipOnDemand
   public static void setWestPanel(final JComponent westLabel){
       westPanel=new JPanel();
       westPanel.add(westLabel);
-      westPanel.setBorder(BorderFactory.createEmptyBorder(3,7,0,0));
+      westPanel.setBorder(BorderFactory.createEmptyBorder(1,1,0,0));
 
   }
 

@@ -704,5 +704,25 @@ classdef StringArray < handle
              end
              
          end
+         
+         function [name, N]=FirstAndN(names, otherName)
+             N=length(names);
+             if N<1
+                 name='';
+             else
+                 name=names{1};
+                 if N>1
+                     if nargin<2                         
+                         name=sprintf('%s and %s', name, ...
+                             String.Pluralize2('other', N-1));
+                     else
+                         name=sprintf('%s and %s', name, ...
+                             String.Pluralize2(...
+                             ['other ' otherName], N-1));
+                     end
+                 end
+             end
+         end
+
     end
 end

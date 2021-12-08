@@ -317,11 +317,76 @@ classdef WebDownload
                     didUrlConnect(i)=true;
                     bytesPerUrl(i)= con.size;
                     con.disconnect();
-                end
-						
+                end		
             end
         end
         
+        function [ok, cancelled, dwl, dlg, notExistsFiles, existsFiles,...
+                 notExistsUrls, existsUrls]=Many( urls, toFolder,...
+                 dfltFldr, waitWhenDone, allowCancel, where)
+            if nargin<6
+                where='center';
+                if nargin<5
+                    allowCancel=true;
+                    if nargin<4
+                        waitWhenDone=false;
+                        if nargin<2 || isempty(toFolder)
+                            toFolder=WebDownload.DefaultFolder;
+                        end
+                        if nargin<3
+                            dfltFldr=File.TrimHome(toFolder);
+                            if strcmp(toFolder, dfltFldr)
+                                dfltFldr=WebDownload.DOCUMENTS_FOLDER_FOR_EXAMPLES;
+                            end
+                            if startsWith(dfltFldr, ['Documents' filesep])
+                                dfltFldr=dfltFldr(11:end);
+                            end
+                        end
+                    end
+                end
+            end
+            ok=false;
+            N=length(urls);
+            localFiles=cell(1, N);
+            for i=1:N
+                url=urls{i};
+                [p, f, ext]=fileparts(url);
+                if isempty(p)
+                    url=fullfile(WebDownload.HOST, dfltFldr, [f ext]);
+                    urls{i}=url;
+                end
+                if startsWith(url, WebDownload.HOST)
+                    [~,path]=WebDownload.UrlParts(url);
+                    key=fileparts(path);
+                    urls{i}=WebDownload.ResolveUrl([f ext], key);
+                end
+                localFiles{i}=fullfile(toFolder, ...
+                    [String.URLDecode(f) String.URLDecode(ext)]);
+            end
+            [cancelled, bad, dwl, dlg]=...
+                WebDownload.Get(urls, localFiles,  ...
+                waitWhenDone, allowCancel, where);
+            if nargout>4
+                notExistsFiles={}; existsFiles={};...
+                    notExistsUrls={};existsUrls={};
+                for i=1:N
+                    [~,f,ext]=fileparts(localFiles{i});
+                    name=[f ext];
+                    if ~exist(localFiles{i}, 'file')
+                        notExistsFiles{end+1}=name;
+                        notExistsUrls{end+1}=urls{i};
+                    else
+                        existsFiles{end+1}=name;
+                        existsUrls{end+1}=urls{i};
+                    end
+                end
+            end
+            if ~cancelled 
+                if ~exist('notExistsUrls', 'var'    ) || isempty(notExistsUrls)
+                    ok=true;
+                end
+            end
+        end
         
         %where only used if Gui.m is present
         function [cancelledByUser, bad, dwl, dlg]=...
@@ -358,6 +423,7 @@ classdef WebDownload
             dwl.allowCancel=allowCancel;
             cancelledByUser=~dwl.go(urls,localFiles, ~isempty(where));
             bad=dwl.bad;
+            GoogleDrive.HandleTooBig(dwl, true);
         end
         
         function txt=ReadText(url)
@@ -762,6 +828,12 @@ classdef WebDownload
                     end
                 end
             end
+        end
+        
+        % convenience method for default local folder
+        function fldr=DefaultFolder()
+            fldr=fullfile(File.Documents, ...
+                WebDownload.DOCUMENTS_FOLDER_FOR_EXAMPLES);
         end
     end
 end

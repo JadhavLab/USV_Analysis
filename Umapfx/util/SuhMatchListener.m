@@ -23,11 +23,15 @@ classdef SuhMatchListener < handle
         isTestSuhDataSet;
         lastIsTeachers;
         lastQfIdxs;
+        lastLbls;
+        lastNames;
+        selected;
     end
     
     properties
         explorerName='DImension';
         btnsObj;
+        fncSelected;
     end
     
     methods
@@ -76,41 +80,89 @@ classdef SuhMatchListener < handle
         function select(this, qf, isTeachers, qfIdxs)
             this.lastIsTeachers=isTeachers;
             this.lastQfIdxs=qfIdxs;
+            hasPredictions=~isempty(this.table.predictions);
+            hasTestSetSelections=~all(isTeachers);
+            go1=true; 
             if ~isempty(this.table.cbSyncKld) 
-                edu.stanford.facs.swing.Basics.Shake(this.table.cbSyncKld, 3);                
-                if ~this.table.cbSyncKld.isSelected
-                    return;
+                go1=this.table.cbSyncKld.isSelected;
+                if ~hasPredictions
+                    edu.stanford.facs.swing.Basics.Shake(this.table.cbSyncKld, 3);
                 end
             end
-            [names, lbls]=QfHiDM.GetNamesLbls(qf, isTeachers, qfIdxs, ...
+            if hasPredictions
+                go4=(this.table.cbStackedPredictions.isSelected);
+                edu.stanford.facs.swing.Basics.Shake(this.table.cbStackedPredictions, 3);
+            else
+                go4=false;
+            end
+            [names,lbls]=QfHiDM.GetNamesLbls(qf, isTeachers, qfIdxs, ...
                 this.btnsObj);
-            this.updateRoi(names, isTeachers, true, lbls);
-            this.updateRoi(names, isTeachers, false, lbls);
+            studentSelections=[];
+            if (go1)
+                if hasTestSetSelections
+                    this.updateRoi(names, isTeachers, false, lbls);
+                end
+                if any(isTeachers)
+                    if hasTestSetSelections
+                        studentSelections=this.selected;
+                    end
+                    this.updateRoi(names, isTeachers, true, lbls);
+                end
+            else
+                if hasTestSetSelections
+                    this.getTestSubset(lbls);
+                end
+                if any(isTeachers)
+                    if hasTestSetSelections
+                        studentSelections=this.selected;
+                    end
+                    this.getTrainingSubset(lbls, false);
+                end
+            end
+            if length(studentSelections)==length(this.selected)
+                % represent totality of selections 
+                if size(this.selected,1) ~= size(studentSelections,1)
+                    this.selected=this.selected|studentSelections';
+                else
+                    this.selected=this.selected|studentSelections;
+                end
+            end
+            if (go4)
+                this.table.predictions.computeStackedHtml(...
+                    lbls, this.explorerName);
+            end
+            this.lastLbls=lbls;
+            this.lastNames=names;
+            if ~isempty(this.fncSelected)
+                feval(this.fncSelected, this)
+            end
         end
         
         function dataSubset=getTrainingSubset(this, lbls, isTestSet)
+            
             if this.isTrainingSuhDataSet
                 if isTestSet
-                    dataSubset=this.trainingSet.data(...
-                        MatBasics.LookForIds2(this.testIds, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.testIds,lbls);
                 elseif ~isempty(this.trainingIds)
-                    dataSubset=this.trainingSet.data(...
-                        MatBasics.LookForIds2(this.trainingIds, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.trainingIds, lbls);
                 else
-                    dataSubset=this.trainingSet.data(...
-                        MatBasics.LookForIds2(this.trainingSet.labels, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.trainingSet.labels, lbls);
+                end
+                if nargout>0
+                    dataSubset=this.trainingSet.data(this.selected, :);
                 end
             else
-                if isempty(this.trainingIds)
+                if isTestSet
+                    this.selected=MatBasics.LookForIds2(this.testIds,lbls);
+                elseif isempty(this.trainingIds)
                     warn('Showing all data... no labels/ids for %s', ...
                         this.trainingName);
-                    dataSubset=this.trainingSet;
-                elseif isTestSet
-                    dataSubset=this.trainingSet(...
-                        MatBasics.LookForIds2(this.testIds, lbls),:);
+                    this.selected=true(1,size(this.trainingSet,1));
                 else
-                    dataSubset=this.trainingSet(...
-                        MatBasics.LookForIds2(this.trainingIds, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.trainingIds, lbls);
+                end
+                if nargout>0
+                    dataSubset=this.trainingSet(this.selected, :);
                 end
             end
         end
@@ -120,23 +172,23 @@ classdef SuhMatchListener < handle
                 dataSubset=this.getTrainingSubset(lbls,true);
             elseif this.isTestSuhDataSet
                 if ~isempty(this.testIds)
-                    dataSubset=this.testSet.data(...
-                        ismember(this.testIds, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.testIds, lbls);
                 else
-                    dataSubset=this.testSet.data(...
-                        MatBasics.LookForIds2(this.testSet.labels, lbls),:);
+                    this.selected=MatBasics.LookForIds2(this.testSet.labels, lbls);                    
+                end
+                if nargout>0
+                    dataSubset=this.testSet.data(this.selected,:);
                 end
             else
                 if isempty(this.testIds)
                     warn('Showing all data... no labels/ids for %s', ...
                         this.testName);
-                    dataSubset=this.testSet;
+                    this.selected=true(1,size(this.testSet,1));
                 else
-                    dataSubset=this.testSet(...
-                        MatBasics.LookForIds2(this.testIds, lbls),:);
-                    if ~isempty(this.table.predictions)
-                        this.table.predictions.selected(lbls);
-                    end
+                    this.selected=MatBasics.LookForIds2(this.testIds, lbls);
+                end
+                if nargout>0
+                    dataSubset=this.testSet(this.selected, :);
                 end
             end
         end
@@ -149,7 +201,7 @@ classdef SuhMatchListener < handle
             end
             if doTeacher
                 roiTable=this.roiTableTraining;
-                dataSubset=this.getTrainingSubset(lbls,false);
+                dataSubset=this.getTrainingSubset(lbls, false);
             else
                 roiTable=this.roiTableTest;
                 dataSubset=this.getTestSubset(lbls);
@@ -202,7 +254,8 @@ classdef SuhMatchListener < handle
                 end
                 roiTable=Kld.Table(dataSubset,  this.columnNames, ...
                     [], followed, name, where, this.explorerName, ...
-                    dataSetName, false, [], {followed, where, true});
+                    dataSetName, false, [], {followed, where, true},...
+                    true, this.table.qf.densityBars);
                 if doTeacher
                     this.roiTableTraining=roiTable;
                 else

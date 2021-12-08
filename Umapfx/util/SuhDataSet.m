@@ -388,10 +388,11 @@ classdef SuhDataSet < handle
         end
         
         
-        function seePredictions(this)
+        function predictions=seePredictions(this)
             if ~isempty(this.matchTable)
                 this.predictions=this.matchTable.seePredictionOfThese;
             end
+            predictions=this.predictions;
         end
 
         function [qf, matchTable]=characterize(this, epp, pu, visible)
@@ -481,6 +482,7 @@ classdef SuhDataSet < handle
                 this.matchTable.fncSelect=@matchTableSelect;
                 if args.match_predictions
                     this.predictions=this.matchTable.seePredictionOfThese;
+                    epp.setPredictionListener(this.predictions);
                 end
             else % awkward evolutionary history of QF 
                  %   requires constructing gui element 

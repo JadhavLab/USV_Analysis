@@ -23,7 +23,6 @@ if ~isdeployed
         edu.stanford.facs.swing.CpuInfo.isMac;
     catch
         initPaths
-        initJava
         try
             isMac=edu.stanford.facs.swing.CpuInfo.isMac;
         catch ex
@@ -104,9 +103,14 @@ end
 
     function initPaths
         pPth=fileparts(mfilename('fullpath'));
+        utilPath=fullfile(pPth, 'util');
+        addpath(utilPath);
+        MatBasics.WarningsOff
+        if ~initJava
+            error('Can not find suh.jar');
+        end
         eppPath=fullfile(pPth, 'epp');
         addpath(eppPath);
-        utilPath=fullfile(pPth, 'util');
         addpath(utilPath);
         umapPath=fullfile(pPth, 'umap');
         FileBasics.AddNonConflictingPaths({eppPath, utilPath, umapPath});

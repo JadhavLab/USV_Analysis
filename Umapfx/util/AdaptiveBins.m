@@ -84,6 +84,33 @@ classdef AdaptiveBins<handle
             end
         end
         
+    end
+    properties
+        uncompressedStudPtrs;
+        uncompressedTeachPtrs;
+    end
+    
+    methods
+        function prior=compressStudPtrs(this, probability_bins)
+            this.uncompressedStudPtrs=this.studPtrs;
+            this.studPtrs=probability_bins.fit(this.studPtrs)';
+        end
+        
+        function compressTeachPtrs(this, probability_bins)
+            this.uncompressedTeachPtrs=this.teachPtrs;
+            this.teachPtrs=probability_bins.fit(this.teachPtrs)';
+        end
+        
+        function uncompress(this)
+            if ~isempty(this.uncompressedStudPtrs)
+                this.studPtrs=this.uncompressedStudPtrs;
+                this.uncompressedStudPtrs=[];
+            end
+            if ~isempty(this.uncompressedTeachPtrs)
+                this.teachPtrs=this.uncompressedTeachPtrs;
+                this.uncompressedTeachPtrs=[];
+            end
+        end
         function [f,p,r]=fMeasure(this, teachChoices, studChoices)
             hPtrs=this.teachPtrs(teachChoices);
             fPtrs=this.studPtrs(studChoices);

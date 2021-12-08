@@ -552,6 +552,39 @@ classdef SortGui < handle
                         cue1 cue2 '</html>'];
             end
         end
+        function items=EncodeIds(szs, ids, list, gtp)
+            if iscell(list)
+                N=length(list);
+            else
+                N=list.size;
+            end
+            app=BasicMap.Global;
+            items=cell(1, N);
+            for i=1:N
+                id=ids(i);
+                if iscell(list)
+                    item=list{i};
+                else
+                    item=list.get(i-1);
+                end
+                frequency=szs(i);
+                cue1=Html.EncodeSort('frequency', frequency);
+                cue2=Html.EncodeSort('name', item);
+                typeOf=(id-floor(id))*10;
+                cue3=Html.EncodeSort('+/- type', typeOf);
+                if nargin>3
+                    frequency=gtp.encodeCount(frequency) ;
+                else
+                    frequency=String.encodeCount(frequency);
+                end
+                    
+                items{i}=['<html>' item app.smallStart...
+                        '<font ' Html.HexColor([.33 .33 .52]) '>'...
+                        '<b> &lt;' frequency ...
+                        ' events&gt;</b></font>'  app.smallEnd ...
+                        cue1 cue2 cue3 '</html>'];
+            end
+        end
     end
 end
 

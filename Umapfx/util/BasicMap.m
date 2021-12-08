@@ -1,7 +1,6 @@
 %   AUTHORSHIP
 %   Primary Developer: Stephen Meehan <swmeehan@stanford.edu> 
 %   Math Lead & Secondary Developer:  Connor Meehan <connor.gw.meehan@gmail.com>
-%   Bioinformatics Lead:  Wayne Moore <wmoore@stanford.edu>
 %   Provided by the Herzenberg Lab at Stanford University 
 %   License: BSD 3 clause
 %
@@ -19,6 +18,14 @@ classdef BasicMap < Map
         cbn;
         sw=SuhWindow;
         currentJavaWindow=[];
+    end
+    
+    properties
+        appVersion;
+        appName;
+        exeFile;
+        versionFile;
+        remoteFolder;
     end
     
     properties(SetAccess=private)
@@ -46,11 +53,10 @@ classdef BasicMap < Map
         assignedCores;
         emptySet;
         emptyList;
+        countUpdateCheck=0;
     end
     
     methods(Static)
-
-        
         function this=Global(closeIfTrueOrMap)
             persistent singleton;
             if nargin>0 && islogical(closeIfTrueOrMap) && closeIfTrueOrMap
@@ -342,6 +348,95 @@ classdef BasicMap < Map
         function closeToolTip(this)
             if ~isempty(this.ttod)
                 javaMethodEDT('close', this.ttod);
+            end
+        end
+        
+        function v=getMatLabVersion(this)
+            [~, v]=MatBasics.VersionAbbreviation;
+        end
+        
+        function v=VERSION(this) %upper case for CytoGate compatibility
+            v=this.getVersion;
+        end
+        
+        function rememberUpdateCheck(this)
+            this.countUpdateCheck=this.countUpdateCheck+1;
+        end
+        
+        function setAppVersion(this, autoGateV, umapV, eppV)
+            matLabVersion=this.getMatLabVersion;
+            if ~isempty(autoGateV)
+                %AutoGate code is present
+                this.appVersion=str2num(autoGateV);
+                this.appName='AutoGate';
+                [~, this.exeFile, this.versionFile]=CgSysAdmin.AppName;
+                this.remoteFolder='GetDown2/domains/FACS';
+            else
+                this.appVersion=num2str(umapV);
+                this.remoteFolder='GetDown2/domains/SUH';
+                if ~isempty(eppV) && ~isempty(umapV)
+                    this.appName='suh_pipelines';
+                elseif isempty(eppV)
+                    this.appName='run_umap';
+                else
+                    this.appName='run_epp';
+                    this.appVersion=num2str(eppV);
+                end
+                ext='.tar';
+                if ismac
+                    computer='mac';
+                elseif isunix
+                    computer='unix';
+                else
+                    computer='pc';
+                    ext='.exe';
+                end
+                this.exeFile=[this.appName matLabVersion ext];
+                this.versionFile=[this.appName matLabVersion ...
+                    '_' computer '.txt'];
+            end
+        end
+        
+        function detectAppVersion(this)
+            %logic to determine the application containing
+            %util/BasicMap.,m
+            autoGateV=[];umapV=[];eppV=[];
+            try
+                autoGateV=CytoGate.VERSION;
+            catch % will fail if AutoGate app not present
+            end
+            try
+                umapV=UMAP.VERSION;
+            catch % will fail if run_umap not present
+            end
+            try
+                eppV=SuhEpp.VERSION;
+            catch % will fail if run_umap not present
+            end
+            this.setAppVersion(autoGateV, umapV, eppV);
+        end
+        
+        function [matLabVersion, appVersion, name, exeFile, ...
+                versionFile, remoteFolder]=getAppDetails(this)
+            if isempty(this.appVersion)
+                this.detectAppVersion;
+            end
+            matLabVersion=this.getMatLabVersion;
+            appVersion=this.appVersion;
+            name=this.appName;
+            exeFile=this.exeFile;
+            versionFile=this.versionFile;
+            remoteFolder=this.remoteFolder;
+        end
+        
+        function setHelp(this, cue)
+            if ~isequal(this, BasicMap.Global)
+                try
+                    BasicMap.Global.setHelp(cue);
+                catch
+                end
+            else
+                warning('App has no help system implementation yet...');
             end
         end
     end

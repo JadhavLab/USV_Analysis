@@ -25,17 +25,17 @@ classdef QfHiDM < handle
         HTML_MATRIX_LIMIT=10000; %cells
         MERGE_LIMITS=Html.WrapSmallBoldCell({...
             'Unlimited matches per subset',...
-            ['&lt;= 7 matches per subset (120 mergers)'],...
-            ['&lt;= 8 matches per subset (247 mergers)'],...
-            ['&lt;= 9 matches per subset (502 mergers)'],...
-            ['&lt;= 10 matches per subset (1,013 mergers)'],...
-            ['&lt;= 11 matches per subset (2,036 mergers)'],...
-            ['&lt;= 12 matches per subset (4,083 mergers)'],...
-            ['&lt;= 13 matches per subset (8,178 mergers)'],...
-            ['&lt;= 14 matches per subset (16,369 mergers)'],...
-            ['&lt;= 15 matches per subset (32,752 mergers)'],...
-            ['&lt;= 16 matches per subset (65,519 mergers)'],...
-            ['&lt;= 17 matches per subset (131,054 mergers)']...
+            '&lt;= 7 matches per subset (120 mergers)',...
+            '&lt;= 8 matches per subset (247 mergers)',...
+            '&lt;= 9 matches per subset (502 mergers)',...
+            '&lt;= 10 matches per subset (1,013 mergers)',...
+            '&lt;= 11 matches per subset (2,036 mergers)',...
+            '&lt;= 12 matches per subset (4,083 mergers)',...
+            '&lt;= 13 matches per subset (8,178 mergers)',...
+            '&lt;= 14 matches per subset (16,369 mergers)',...
+            '&lt;= 15 matches per subset (32,752 mergers)',...
+            '&lt;= 16 matches per subset (65,519 mergers)',...
+            '&lt;= 17 matches per subset (131,054 mergers)'...
             });
         MERGE_STRATEGIES=Html.WrapSmallBoldCell({...
             'Best matches (QF or F)', ...
@@ -105,17 +105,17 @@ classdef QfHiDM < handle
        PROP_DISSIMILARITY_LIMIT='qfLimit';
        MERGE_LIMITS2=Html.WrapSmallBoldCell({...
             'Unlimited matches per subset',...
-            ['&lt;= 7 matches (per subset, 120 mergers)'],...
-            ['&lt;= 8 matches (per subset, 247 mergers)'],...
-            ['&lt;= 9 matches (per subset, 502 mergers)'],...
-            ['&lt;= 10 matches (per subset,  1,013 mergers )'],...
-            ['&lt;= 11 matches (per subset, 2,036 mergers )'],...
-            ['&lt;= 12 matches (per subset, 4,083 mergers )'],...
-            ['&lt;= 13 matches (per subset, 8,178 mergers)'],...
-            ['&lt;= 14 matches (per subset, 16,369 mergers)'],...
-            ['&lt;= 15 matches (per subset, 32,752 mergers)'],...
-            ['&lt;= 16 matches (per subset, 65,519 mergers)'],...
-            ['&lt;= 17 matches (per subset, 131,054 mergers)']...
+            '&lt;= 7 matches (per subset, 120 mergers)',...
+            '&lt;= 8 matches (per subset, 247 mergers)',...
+            '&lt;= 9 matches (per subset, 502 mergers)',...
+            '&lt;= 10 matches (per subset,  1,013 mergers )',...
+            '&lt;= 11 matches (per subset, 2,036 mergers )',...
+            '&lt;= 12 matches (per subset, 4,083 mergers )',...
+            '&lt;= 13 matches (per subset, 8,178 mergers)',...
+            '&lt;= 14 matches (per subset, 16,369 mergers)',...
+            '&lt;= 15 matches (per subset, 32,752 mergers)',...
+            '&lt;= 16 matches (per subset, 65,519 mergers)',...
+            '&lt;= 17 matches (per subset, 131,054 mergers)'...
             });
         BLAME_FALSE_POS=1;
     end
@@ -202,6 +202,7 @@ classdef QfHiDM < handle
         idxsTruePos={};
         idxsFalsePos={};
         idxsFalseNeg={};
+        densityBars;
     end
     
     properties
@@ -355,6 +356,11 @@ classdef QfHiDM < handle
            this.tCompData=tCompData;
            this.sData=sData;
            this.areEqual=isequal(this.tData, this.sData);
+           if this.areEqual
+               this.densityBars=DensityBars(this.tData);
+           else
+               this.densityBars=DensityBars([this.tData; this.sData]);
+           end
            this.nCells=MatBasics.CountNonZeroPerColumn(tIdPerRow)+...
                MatBasics.CountNonZeroPerColumn(sIdPerRow);
            this.sCompData=sCompData;
@@ -379,6 +385,49 @@ classdef QfHiDM < handle
         function setColumnNames(this, columnNames)
             this.columnNames=columnNames;
         end
+        
+        function ok=compress(this, probability_bins)
+            if nargin<2
+                probability_bins=this.probability_bins;
+            end
+            if ~isempty(probability_bins) && ...
+                    isequal(probability_bins.originalData, this.sData)
+                ok=true;
+                this.probability_bins=probability_bins;
+                this.sData=probability_bins.compress;
+                this.uncompressedSids=this.sIdPerRow;
+                this.sIdPerRow=probability_bins.fit(this.sIdPerRow);
+                this.adaptiveBins.compressStudPtrs(probability_bins);
+                if this.areEqual
+                    this.tData=this.sData;
+                    this.uncompressedTids=this.tIdPerRow;
+                    this.tIdPerRow=probability_bins.fit(this.tIdPerRow);
+                    this.adaptiveBins.compressTeachPtrs(probability_bins);
+                end
+            else
+                ok=true;
+            end
+        end
+        
+        function ok=decompress(this)
+            if ~isempty(this.probability_bins)
+                ok=true;
+                this.sData=this.probability_bins.originalData;
+                this.sIdPerRow=this.uncompressedSids;
+                if this.areEqual
+                    this.tData=this.sData;
+                    this.tIdPerRow=this.uncompressedTids;
+                end
+                this.adaptiveBins.uncompress;
+            else
+                ok=false;
+            end
+        end
+    end
+    properties(SetAccess=private)
+        probability_bins;
+        uncompressedTids;
+        uncompressedSids;
     end
     methods
         function fcs=sortColumnNames(this, gt, gid)
@@ -737,7 +786,7 @@ classdef QfHiDM < handle
                     end
                     BasicMap.Global.remove(QfTree.PROP_FREQ_BASIS);
                 end
-            catch ex
+            catch
             end
             this.leafSzs=tSzs;
             if this.isCancelled
@@ -1134,6 +1183,7 @@ classdef QfHiDM < handle
                 totalSize=sum(sizes);
                 for j=1:nTrainingIds
                     tId=trainingIds(j);
+                    idxs=[];
                     if j==nTrainingIds
                         idxs=falsePosIdxs(falsePosIdx:end);
                     else
@@ -1163,7 +1213,9 @@ classdef QfHiDM < handle
                         end
                         falsePosIdx=falsePosIdx+nFalsePos;
                     end
-                    trainedTestEvents(idxs)=tId;
+                    if ~isempty(idxs)
+                        trainedTestEvents(idxs)=tId;
+                    end
                 end
             end
             
@@ -1477,7 +1529,6 @@ classdef QfHiDM < handle
             end
             
             function s=processIds(strIds, ids, s, score)
-                idxs=[];
                 n_=length(strIds);
                 for j=1:n_
                     id=str2double(strIds{j});
@@ -1559,7 +1610,6 @@ classdef QfHiDM < handle
                 else
                     word='1st pass';
                 end
-                cnt=0;
                 if ~isempty(idxsAllMerges)
                     cnt=sum(cellfun(@(x) numel(x),idxsAllMerges));
                 else
@@ -1605,7 +1655,7 @@ classdef QfHiDM < handle
                                             String.encodeRounded(v(mergerCol),3), ...
                                             MatBasics.toString(bestIds{1}),...
                                             String.encodeRounded(r(bestRow, mergerCol),3), ...
-                                            MatBasics.toString(ids{bestRow}))
+                                            MatBasics.toString(ids{bestRow}));
                                         if this.areEqual
                                             msg(['<html>' msgTxt '<hr></html>']);
                                         end
@@ -1626,7 +1676,7 @@ classdef QfHiDM < handle
                             r=this.computeNbyN(ids, this.tIds, '', mergerCol, false);
                             [~, bestRow]=min(r(:,mergerCol));
                             if QfHiDM.TEST_F_MEASURE_OPTIMIZE
-                                [rr, xx]=this.fMeasureNby1(ids, this.tIds, mergerCol);
+                                [~, xx]=this.fMeasureNby1(ids, this.tIds, mergerCol);
                                 if xx~=bestRow
                                     disp('xx~=bestRow');
                                     this.fMeasureNby1(ids, this.tIds, mergerCol);
@@ -1662,7 +1712,7 @@ classdef QfHiDM < handle
                                             String.encodeRounded(v(mergerRow), 3), ...
                                             MatBasics.toString(bestIds{1}),...
                                             String.encodeRounded(r(mergerRow, bestCol), 3), ...
-                                            MatBasics.toString(ids{bestCol}))
+                                            MatBasics.toString(ids{bestCol}));
                                         if this.areEqual
                                             msg(['<html>' msgTxt ...
                                                 '<hr></html>']);
@@ -1684,7 +1734,7 @@ classdef QfHiDM < handle
                             r=this.computeNbyN(allStudIds, ids, '', mergerRow, true);
                             [~, bestCol]=min(r(mergerRow, :));
                             if QfHiDM.TEST_F_MEASURE_OPTIMIZE
-                                [rr, xx]=this.fMeasure1byN(allStudIds, ids, mergerRow);
+                                [~, xx]=this.fMeasure1byN(allStudIds, ids, mergerRow);
                                 if xx~=bestCol
                                     disp('assert(xx==bestCol);');
                                     this.fMeasure1byN(allStudIds, ids, mergerRow)
@@ -1857,8 +1907,8 @@ classdef QfHiDM < handle
                 getInAscendingOrder(this, nTH, idAsCellString)
             [qfDistance, x, y]=MatBasics.PokeSortedMatrix(...
                 this.result, nTH);
-            [sIds_, sIdxs]=QfHiDM.GetIds(x, this.sIds, this.sMergedIds);
-            [tIds_, tIdxs]=QfHiDM.GetIds(y, this.tIds, this.tMergedIds);
+            [sIds_, ~]=QfHiDM.GetIds(x, this.sIds, this.sMergedIds);
+            [tIds_, ~]=QfHiDM.GetIds(y, this.tIds, this.tMergedIds);
             if nargin>2 && idAsCellString
                sIds_=QfHiDM.ToCellStrings(sIds_);
                tIds_=QfHiDM.ToCellStrings(tIds_);
@@ -1943,7 +1993,7 @@ classdef QfHiDM < handle
                         lbl=[lbl String.encodeInteger(this.leafSzs(idx))...
                             ' events'];
                     catch ex
-                        ex
+                        disp(getReport(ex));
                     end
                     if i<N
                         lbl=[lbl '<br>'];
@@ -1999,7 +2049,7 @@ classdef QfHiDM < handle
                             this.sIdPerRow, sIdSet);
                         try
                             deviants=sum(devUnits>this.devMax);
-                        catch ex
+                        catch
                             deviants=0;
                         end
                         try
@@ -2010,7 +2060,7 @@ classdef QfHiDM < handle
                                 stainDeviants=sum(devUnits>=this.devMax & ...
                                     ~this.isScatter);
                             end
-                        catch ex
+                        catch
                             stainDeviants=0;
                         end
                         if deviants>this.maxDeviantParameters
@@ -2159,7 +2209,7 @@ classdef QfHiDM < handle
                 [maxF, bestRow]=topFs.best;
                 matrix(bestRow, mergerCol)=1-maxF;
             else
-                [rows, Fs]=topFs.all;
+                [rows, ~]=topFs.all;
                 nRows=length(rows);
                 scores=zeros(1, nRows);
                 for i=1:nRows
@@ -2243,7 +2293,7 @@ classdef QfHiDM < handle
                 [maxF, bestCol]=topFs.best;
                 matrix(mergerRow, bestCol)=1-maxF;
             else
-                [cols, Fs]=topFs.all;
+                [cols, ~]=topFs.all;
                 nCols=length(cols);
                 scores=zeros(1, nCols);
                 for i=1:nCols
@@ -3082,7 +3132,7 @@ classdef QfHiDM < handle
             try
                 Java=edu.stanford.facs.swing.ChangeQuantification;
                 D=Java.quadraticFormHiD(h, f, means);
-            catch ex
+            catch
                 D=1; % max distance !!
             end
         end
@@ -3109,7 +3159,7 @@ classdef QfHiDM < handle
                 A_IJ=1-meansOrDists/d_max;
                 [H, F]=meshgrid(h-f, h-f);
                 D=sqrt(sum(sum(A_IJ.*H.*F)));
-            catch ex
+            catch
                 if nargin<4 || isMeans
                     D=QfHiDM.ComputeFastHiD(h, f, originalMeans);
                 end
@@ -3430,7 +3480,7 @@ classdef QfHiDM < handle
             QF.ttl='Phenogram';
             try
                 QF.ttl=qft.ttl;
-            catch ex
+            catch
             end
         end
         
@@ -3885,6 +3935,24 @@ classdef QfHiDM < handle
                     end
                 end
             end
+        end
+        
+        
+        
+        function tip=Tip(widthPixels)
+            if nargin<1
+                widthPixels=250;
+            end
+            if BasicMap.Global.highDef
+                widthPixels*1.3;
+            end
+            tip=['<table cellpadding="8" width="' num2str(widthPixels) ...
+                'px"><tr><td><u><b>Similarity</b></u> is based on a change '...
+                'quantification metric that measures both'...
+                ' mass + distance using either<ul><li>Earth-'...
+                'mover''s distance (<b>EMD</b>)<li><b>QFMatch</b> '...
+                'which is an optimization of QFMatch'...
+                '</ul></td></tr></table>'];
         end
     end
 end

@@ -24,6 +24,7 @@ classdef ArgumentClinic < handle
             Gui.JavaComponentAt(ArgumentClinic.TopPanel(this.app,...
                 @(idx)selectClinic(this, idx)), 'north', this.fig);
             this.fig.Visible='on'; 
+            ArgumentClinic.CheckForUpdate(false);
         end
         
         function selectClinic(this, idx)
@@ -137,6 +138,12 @@ classdef ArgumentClinic < handle
                     feval(fnc, idx);
                 end
             end
+        end
+        
+        function CheckForUpdate(userIsAsking)
+            app=BasicMap;
+            app.setAppVersion([], UMAP.VERSION, SuhEpp.VERSION);
+            SuhWebUpdate.Check(app, userIsAsking, .21);
         end
     end
 end

@@ -206,8 +206,8 @@ classdef SuhWindow < handle
         function showTipIfAsked(this, jw)
             jw=Gui.JWindow(jw);
             app=BasicMap.Global;
-            quest=Html.WrapSmallBold(['<center>Keep moving the windows'...
-                '<br>related to <u>this</u> ...</center>'], app);
+            quest=Html.WrapSmallBold(...
+                '<center>Keep moving associated windows?</center>', app);
             north=Gui.FlowPanelCenter(0,0, quest);
             btnAlways=Gui.NewBtn(Html.WrapSmallBold('Yes, always', app), ...
                 @(h,e)alwaysMove());
@@ -233,8 +233,8 @@ classdef SuhWindow < handle
             jw=Gui.JWindow(jw);
             app=BasicMap.Global;
             
-            quest=Html.WrapSmallBold(['<center>Move the windows'...
-                '<br>related to <u>this</u> one ?</center>'], app);
+            quest=Html.WrapSmallBold(...
+                '<center>Move associated windows?</center>', app);
             north=Gui.FlowPanelCenter(0,0, quest);
             btnAlways=Gui.NewBtn(Html.WrapSmallBold('Always', app),...
                 @(h,e)alwaysMove());
@@ -326,6 +326,7 @@ classdef SuhWindow < handle
         
         function SetFigVisible(fig)
             if Gui.IsFigure(fig)
+                Gui.FitFigToScreen(fig);
                 set(fig, 'visible', 'on');
                 drawnow;
                 sw=BasicMap.Global.sw;
@@ -457,7 +458,7 @@ classdef SuhWindow < handle
                 try
                     jwFollowed.dispose;
                 catch 
-                    fprintf('jFollowed==null?')
+                    %fprintf('jwFollowed==null?\n')
                 end
             end
         end

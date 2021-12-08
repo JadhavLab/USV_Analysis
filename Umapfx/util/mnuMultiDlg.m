@@ -259,7 +259,10 @@ cancel=javaObjectEDT('javax.swing.JButton', 'Cancel');
 cancel.setIcon(Gui.Icon('cancel.gif')); 
 cancelH=handle(cancel,'CallbackProperties');
 set(cancelH, 'ActionPerformedCallback', @(h,e)close(false));
-edu.stanford.facs.swing.CpuInfo.registerEscape(mainDlg, cancel);
+try
+    edu.stanford.facs.swing.CpuInfo.registerEscape(mainDlg, cancel);
+catch
+end
 south=Gui.BorderPanel(0,0);
 southSouth=Gui.BorderPanel(0,0);
 southEast=Gui.FlowPanel;

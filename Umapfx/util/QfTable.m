@@ -50,9 +50,12 @@ classdef QfTable < handle
         predictionsOfThese;
         listener;
         cbSyncKld;
+        cbStackedPredictions;
+        cbFlashlight;
         similarityIdx;
         overlapIdx;
         idIdx;
+        fncPredictionSelected;
     end
     
     properties(Constant)
@@ -88,7 +91,7 @@ classdef QfTable < handle
             isForPrediction=~isempty(predictions);
             if isempty(propSuffix)
                 if isForPrediction
-                    propSuffix='.Predictions';
+                    propSuffix='.PredictionsV2';
                 end
             end
             if iscell(visible)
@@ -154,7 +157,7 @@ classdef QfTable < handle
                 fmts(idIdx,:)=[8 nan];
                 fmts(nameIdx,:)=[26 nan];
                 this.adjustForPredictions(predictions, rankIdx,  groupIdx,...
-                    similarityIdx, overlapIdx, idIdx, freqIdx, szIdx);
+                    similarityIdx, overlapIdx, idIdx, nameIdx, szIdx, matchesIdx);
             end
             [this.R, C]=size(this.data);
             J=edu.stanford.facs.swing.Basics;
@@ -202,16 +205,47 @@ classdef QfTable < handle
             ToolBarMethods.addButton(tb_,fullfile(path, 'leftArrowNarrow.png'), ...
                 'Shift sorted columns to the left', ...
                 @(h,e)shiftSortLeft());
+            pnlCb=Gui.FlowLeftPanel(2,0);
+                
             img=Html.ImgXy('pseudoBarHi.png', [], .819);
-            
+            if isForPrediction
+                pnlCb.add(javax.swing.JLabel('  '));
+                img2=Html.ImgXy('pinFlashlightTransparent.png', [], .92);
+                prop4='qfTable.Flashlight';
+                this.cbFlashlight=Gui.CheckBox(...
+                    ['<html>' img2 '</html>'], ...
+                    app.is(prop4, true), app, prop4, [], ...
+                    ['<html>See selections highlighted '...
+                    'in other plots.</html>']);
+                pnlCb.add(this.cbFlashlight);
+                pnlCb.add(javax.swing.JLabel('  '));
+                prop1='qfTable.Sync1';
+                prop4='qfTable.Sync4';
+                this.cbStackedPredictions=Gui.CheckBox(...
+                    Html.WrapSmallBold(['4 ' img], app), ...
+                    app.is(prop4, true), ...
+                    [], '', @(h,e)syncKld([], prop4), ...
+                    ['<html>Keep seeing DimensionStacker ' img ...
+                    'stacked with <br>4 prediction subsets for 1st '...
+                    'selection in <u>this</u> table.</html>']);
+                pnlCb.add(this.cbStackedPredictions);
+                syncWord=['1 ' img];
+                syncDflt=false;
+            else
+                prop1='qfTable.SyncKld';
+                syncWord=['Sync ' img];
+                syncDflt=true;
+            end
+            syncDflt=app.is(prop1, syncDflt);
+
             this.cbSyncKld=Gui.CheckBox(...
-                Html.WrapSmallBold(['Sync ' img], app), ...
-                app.is('qfTable.SyncKld', true), ...
-                [], '', @(h,e)syncKld(), ...
-                ['<html>Select to synchronize table selection<br>'...
-                'with the ' img ' DimensionExplorer</html>']);
-            ToolBarMethods.addComponent(tb_, this.cbSyncKld);
-            
+                Html.WrapSmallBold(syncWord, app), ...
+                syncDflt, [], '', @(h,e)syncKld(prop1, []), ...
+                ['<html>Keep seeing DimensionExplorer ' img ...
+                ' for 1st selection in <u>this</u> table</html>']);
+            pnlCb.add(this.cbSyncKld);
+            ToolBarMethods.addComponent(tb_, pnlCb);
+            ToolBarMethods.addSeparator(tb_);
             savedOrder=BasicMap.GetNumbers(props, PROP_COL_ORD);
             if ~isempty(savedOrder)
                 try
@@ -309,6 +343,7 @@ classdef QfTable < handle
                     end
                 end
             else
+                
                 b1='<font color="blue">';b2='</font>';
                 [testSetWins, nPredicted, means]=this.getPredictionSummary;
                 txt=sprintf(['Similarity true+/false+/false-: '...
@@ -320,19 +355,31 @@ classdef QfTable < handle
                     javax.swing.JLabel(Html.WrapSmallBold(txt)));
             end
             
-            function syncKld
-                prop='qfTab;e.SyncKld';
-                if this.cbSyncKld.isSelected
-                    app.set(prop, 'true');
+            function syncKld(prop1, prop4)
+                go1=false; go4=false;
+                if ~isempty(prop1)
+                    if this.cbSyncKld.isSelected
+                        go1=true;
+                        app.set(prop1, 'true');
+                    else
+                        app.set(prop1, 'false');
+                    end
+                end
+                if ~isempty(prop4)
+                    if this.cbStackedPredictions.isSelected
+                        go4=true;
+                        app.set(prop4, 'true');
+                    else
+                        app.set(prop4, 'false');
+                    end
+                end
+                if go1 || go4                    
                     try
                         this.listener.reselect;
                     catch ex
                         ex.message
                     end
-                else
-                    app.set(prop, 'false');
                 end
-                
             end
 
             function resizeQft(h,e)
@@ -400,9 +447,11 @@ classdef QfTable < handle
             function defaultColumnOrder()
                 idxs=1:jt.getColumnCount;
                 if isForPrediction
-                    eliminate=[nameIdx, overlapIdx, similarityIdx, matchesIdx,...
-                        numIdx,  rankIdx, symIdx];
-                    startWith=[nameIdx, similarityIdx, overlapIdx];
+                    eliminate=[nameIdx, overlapIdx, similarityIdx,...
+                        numIdx,  rankIdx, symIdx, matchesIdx, ...
+                        szIdx, freqIdx];
+                    startWith=[nameIdx, similarityIdx, szIdx, ...
+                        freqIdx, overlapIdx];
                 else
                     startWith=[rankIdx symIdx];
                     eliminate=startWith;
@@ -411,7 +460,6 @@ classdef QfTable < handle
                 eliminate=sort(eliminate, 'descend');
                 idxs(eliminate)=[];
                 idxs=[startWith idxs]-1;
-                    
                 SortTable.SetColumnOrder(jt, idxs, [], true);
             end
             
@@ -421,16 +469,21 @@ classdef QfTable < handle
             end
             
             function hush(h)
-                [columnOrder, widths]=SortTable.GetColumnOrder(jt);
-                props.set(PROP_COL_ORD, num2str(columnOrder));
-                props.set(PROP_COL_W, num2str(widths));
-                rowOrder=SortTable.GetRowOrder(jt);
-                if ~isequal(rowOrder, startingRowOrder)
-                    props.set(PROP_SORT, MatBasics.Encode(...
-                        rowOrder));
+                try
+                    [columnOrder, widths]=SortTable.GetColumnOrder(jt);
+                    props.set(PROP_COL_ORD, num2str(columnOrder));
+                    props.set(PROP_COL_W, num2str(widths));
+                    rowOrder=SortTable.GetRowOrder(jt);
+                    if ~isequal(rowOrder, startingRowOrder)
+                        props.set(PROP_SORT, MatBasics.Encode(...
+                            rowOrder));
+                    end
+                    if exist('PROP_OUTER_POS', 'var') %r2017a thread issue
+                        props.set(PROP_OUTER_POS, ...
+                            num2str(get(h, 'OuterPosition')));
+                    end
+                catch 
                 end
-                props.set(PROP_OUTER_POS, ...
-                    num2str(get(h, 'OuterPosition')));
                 if ~isempty(this.priorFig) && ishandle(this.priorFig)
                     figure(this.priorFig);
                     Gui.CloseFigs(this.otherFigs);
@@ -488,30 +541,51 @@ classdef QfTable < handle
                         ex.getReport
                     end
                     return;
-                    
+                else
+                    try
+                        feval(this.fncSelect, this.qf, ...
+                            [], []);
+                    catch ex
+                        ex.getReport
+                    end
+
                 end
                 st.showTip(0);
             end
         end
         
+        function setPredictionListener(this,fnc)
+            this.fncPredictionSelected=fnc;
+        end
+        
         function adjustForPredictions(this, predictions, rankIdx, plotIdx,...
-                    similarityIdx, overlapIdx,  idIdx, freqIdx, szIdx)
+                    similarityIdx, overlapIdx,  idIdx, nameIdx, szIdx, matchesIdx)
             [R_,C]=size(this.data);
             nT=predictions.nTeachers;
+            sfxPre=[this.app.supStart '&nbsp;&nbsp;<b><i>Predicted</i></b>' this.app.supEnd '</html>'];
+            sfxFn=['</font>' this.app.supStart ' <b>false <font color="red">-</font></b>' this.app.supEnd '</html>'];
+            sfxFp=['</font>' this.app.supStart ' <b>false <font color="red">+</b></font>' this.app.supEnd '</html>'];
+            sfxTp=['</font>' this.app.supStart ' <b>true +</b>' this.app.supEnd '</html>'];
             for i=1:nT
                 this.data{i, plotIdx}='predicted';
                 this.data{i, rankIdx}=nan;
                 this.data{i, similarityIdx}=nan;
                 this.data{i, overlapIdx}=nan;
+                this.data{i, matchesIdx}=nan;
+                name=this.data{i,nameIdx};
+                this.data{i, nameIdx}=['<html><' ...
+                    strrep(strrep(name, '<',''),'>','') ...
+                    ' _>' name sfxPre];
             end
             nPredictions=R_-nT;
             if SuhPredictions.DEBUG
                 assert(nPredictions==length(predictions.sNames));
             end
-            
+            predictions.compress;
             for i=1:nPredictions
                 i2=nT+i;
                 this.data{i2, rankIdx}=nan;
+                name=this.data{i2, nameIdx};
                 strId=this.data{i2, idIdx};
                 id=str2double(strId);
                 [similarity, overlap, tName]=predictions.describe(id);
@@ -519,12 +593,23 @@ classdef QfTable < handle
                 this.data{i2, overlapIdx}=overlap;
                 if endsWith(strId, '.3')
                     word='false -';
+                    name=['<html><' ...
+                        strrep(strrep(name, '<',''),'>','') ...
+                        ' >&nbsp;&nbsp;<font color="#B66666">' name(1:end-7) sfxFn];
                 elseif endsWith(strId, '.2')
                     word='false +';
+                    name=['<html><' ...
+                        strrep(strrep(name, '<',''),'>','') ...
+                        ' >&nbsp;&nbsp;<font color="#B66666">' name(1:end-7) sfxFp];
                 else
                     word='true +';
+                    name=['<html><' ...
+                        strrep(strrep(name, '<',''),'>','') ...
+                        ' >&nbsp;&nbsp;<font color="#66B666">' name(1:end-6) sfxTp];
                 end
+                this.data{i2, nameIdx}=name;
                 this.data{i2, plotIdx}=word;
+                this.data{i2, matchesIdx}=nan;
                 if SuhPredictions.DEBUG
                     if endsWith(strId, '.3')
                         sizeExact=sum(predictions.negLbls==id);
@@ -553,7 +638,7 @@ classdef QfTable < handle
                     end
                 end
             end
-            
+            predictions.decompress;
         end
             
         function listener=listen(this, columnNames, ...
@@ -696,6 +781,9 @@ classdef QfTable < handle
             end
             matrix=cell2mat(this.data(:, columnIndex))*100;
             matrix=matrix(~isnan(matrix));
+            if any(matrix<0)
+                matrix=matrix(matrix>=0);
+            end
             mdn=median(matrix);
             mn=mean(matrix);
         end
@@ -707,26 +795,41 @@ classdef QfTable < handle
         function predictionsOfThese=getPredictionsOfThese(this)
             if ~isempty(this.predictionsOfThese)
                 predictionsOfThese=this.predictionsOfThese;
-                return;
-            end
-            if isstruct(this.qf)
-                if isfield(this.qf, 'predictions')
-                    predictionsOfThese=this.qf.predictions;
-                    predictionsOfThese.setMatch(this);
-                else
-                    msg('Re-build the match to see predictions');
-                    predictionsOfThese=[];
-                end
             else
-                predictionsOfThese=SuhPredictions(this);
+                if isstruct(this.qf)
+                    if isfield(this.qf, 'predictions')
+                        predictionsOfThese=this.qf.predictions;
+                        if ~isempty(predictionsOfThese)
+                            predictionsOfThese.setMatch(this);
+                        end
+                    else
+                        msg('Re-build the match to see predictions');
+                        predictionsOfThese=[];
+                    end
+                else
+                    predictionsOfThese=SuhPredictions(this);
+                end
+                this.predictionsOfThese=predictionsOfThese;
             end
-            this.predictionsOfThese=predictionsOfThese;
+            if ~isempty(this.fncPredictionSelected)
+                this.predictionsOfThese.setSelectionListener(...
+                    this.fncPredictionSelected);
+            end
         end
         
         function [table, predictions]=seePredictionOfThese(this)
             predictions=this.getPredictionsOfThese;
             if ~isempty(predictions)
-                table=predictions.showTable;
+                try
+                    table=predictions.showTable;
+                catch ex
+                    table=[];
+                    predictions=[];
+                    ex.getReport
+                    msg(Html.WrapHr(['Re-run the matching ... '...
+                        '<br>the current cache is <br>'...
+                        'based on an old version!']));
+                end
             else
                 table=[];
             end
@@ -917,6 +1020,7 @@ classdef QfTable < handle
             QF.sNames=qf.sNames;
             QF.matches=qf.matches;
             QF.columnNames=qf.columnNames;
+            QF.densityBars=qf.densityBars;
             [QF.tUnmatched, QF.tN, QF.sUnmatched, QF.sN]=qf.getMatchCounts;
             if ~isempty(qf.falsePosEvents)
                 QF.predictions=SuhPredictions(qf);
@@ -925,7 +1029,9 @@ classdef QfTable < handle
                 QF.predictions=[];
             end
             if nargin>2 && ~isempty(file)
+                QF.densityBars.app=[];%don't save the APP ... infinite loop
                 save(file, 'QF');
+                QF.densityBars.app=BasicMap.Global;
             end
         end
         
@@ -1008,10 +1114,20 @@ classdef QfTable < handle
             try
                 if exist(file, 'file')
                     load(file, 'QF');
-                    if nargin>2
-                        QF.tData=tData;
-                        if nargin>3
-                            QF.tIdPerRow=tIdPerRow;
+                    if ~isempty(QF)
+                        if ~isfield(QF, 'densityBars')
+                            QF.densityBars=[];
+                        else
+                            QF.densityBars.app=BasicMap.Global;
+                        end
+                        if nargin>2
+                            QF.tData=tData;
+                            if nargin>3
+                                QF.tIdPerRow=tIdPerRow;
+                            end
+                            if ~isfield(QF, 'probability_bins')
+                                QF.probability_bins=[];
+                            end
                         end
                     end
                 end

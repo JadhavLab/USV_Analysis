@@ -142,48 +142,47 @@ function [epp, subset_ids]=run_epp(csv_file_or_data, varargin)
 %   3.  Use EPP to discover data subsets in lymphocyte data taken from a
 %       BALB/c mouse strain, collected with a conventional flow cytometer.
 %
-%       run_epp('eliverLabeled.csv', 'label_column', 'end', 'cytometer', 'conventional', 'min_branch_size', 150)
+%       run_epp('eliverLabeled.csv', 'label_column', 'end', 'cytometer', 'conventional', 'min_branch_size', 150);
 %
 %   4.  Use EPP to discover data subsets in human blood data, collected
 %       with a mass cytometer.  We reduce the published example by 50% for
 %       speed. The full sample is genentechLabeled.csv.
 %
-%       run_epp('genentechLabeled100k.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150)
+%       run_epp('genentechLabeled100k.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150);
 %
 %   5.  Use EPP to discover data subsets in human peripheral blood
 %       mononuclear cells, collected with a mass cytometer.
 %
-%       run_epp('maeckerLabeled.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150)
+%       run_epp('maeckerLabeled.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150);
 %
 %   6.  Use EPP to discover data subsets in the OMIP-069 dataset, collected
 %       with a spectral flow cytometer.  We reduce the published sample by
 %       66% for speed. The full sample is omip69Labeled.csv.
 %
-%       run_epp('omip69Labeled200k.csv', 'label_column', 'end', 'cytometer', 'spectral', 'min_branch_size', 150)
+%       run_epp('omip69Labeled200k.csv', 'label_column', 'end', 'cytometer', 'spectral', 'min_branch_size', 150);
 %
 %   7.  Use EPP to discover data subsets in the OMIP-047 dataset, collected
 %       with a conventional flow cytometer.
 %
-%       run_epp('omipBLabeled.csv', 'label_column', 'end', 'cytometer', 'conventional', 'min_branch_size', 150, 'W', .015)
+%       run_epp('omipBLabeled.csv', 'label_column', 'end', 'cytometer', 'conventional', 'min_branch_size', 150, 'W', .015);
 %
 %   8.  Use EPP to discover data subsets in the "Panorama" dataset,
 %       collected with a mass cytometer.
 %
-%       run_epp('panoramaLabeled.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150, 'W', .024)
+%       run_epp('panoramaLabeled.csv', 'label_column', 'end', 'cytometer', 'cytof', 'min_branch_size', 150, 'W', .024);
 %
 %
 %  ALGORITHM
-%  Wayne Moore is EPP's primary inventor.  Secondary
-%  inventors include David Parks, (drparks@stanford.edu), 
-%  Connor Meehan and Stephen Meehan.
+%  Wayne Moore is EPP's primary inventor.  Secondary inventors include
+%  David Parks, (drparks@stanford.edu), Connor Meehan, and Stephen Meehan.
 %
 % Slides describing the invention can be viewed at
 % https://onedrive.live.com/?authkey=%21ALyGEpe8AqP2sMQ&cid=FFEEA79AC523CD46&id=FFEEA79AC523CD46%21209192&parId=FFEEA79AC523CD46%21204865&o=OneUp
 % or downloaded at 
-% http://cgworkspace.cytogenie.org/run_umap/publications/herzenberg60.pptx
+% http://cgworkspace.cytogenie.org/run_umap/publications/herzenberg60.pptx.
 %
 % In summary EPP is an unsupervised data subset discovery method that for
-% an N dimensional dataset determines the best 2 way split in any possible
+% an N-dimensional dataset determines the best 2 way split in any possible
 % pair of dimensions and then repeats on each split until no further splits
 % occur in any possible dimension pair.  The result is a hierarchy of 2-way
 % splits where the leaves represent well separated subsets of the total
@@ -191,7 +190,7 @@ function [epp, subset_ids]=run_epp(csv_file_or_data, varargin)
 % EPP's leaves: hence "no data point is left behind".
 % One of the motivations for this invention is to find an ultra
 % conservative approach to avoiding the curse of dimensionality that is
-% constantly a risk for N dimensional subset discovery methods which rely
+% constantly a risk for N-dimensional subset discovery methods which rely
 % on "all at once" separation detecting techniques. Thus EPP is distinctly
 % more cautious than subset discovery methods (or data island visualization
 % methods) like t-SNE, UMAP and flowSOM.
@@ -213,10 +212,6 @@ if nargin<1
 end
 if ~isdeployed
     initPaths;
-    if ~initJava
-        disp('Could not find suh.jar');
-        return;
-    end
 end
 if ~confirmMex
     epp=[];
@@ -295,6 +290,10 @@ end
         pPth=fileparts(pth);
         utilPath=fullfile(pPth, 'util');
         addpath(utilPath);
+        MatBasics.WarningsOff
+        if ~initJava
+            error('Can not find suh.jar');
+        end
         umapPath=fullfile(pPth, 'umap');
         if exist(umapPath, 'dir')
             FileBasics.AddNonConflictingPaths({pth, utilPath, umapPath});

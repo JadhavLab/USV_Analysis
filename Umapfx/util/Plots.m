@@ -549,7 +549,7 @@ classdef Plots < handle
                 fncClose=get(fig, 'CloseRequestFcn');
                 set(fig, 'CloseRequestFcn', @disposeJavaLegend);
                 btns.get(0).getParent.scrollRectToVisible(java.awt.Rectangle(0,0,1,1))
-                if ismac
+                if ismac && HL.isVisible
                     if 1<size(get(0, 'MonitorPositions'), 1)
                         if isequal('on', get(fig, 'visible'))
                             MatBasics.RunLater(@(h,e)relocate(getjframe(fig)), .52)

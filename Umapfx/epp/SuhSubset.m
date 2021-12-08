@@ -32,6 +32,21 @@ classdef SuhSubset<handle
             end
         end
         
+        function data=filter(this, rows, cols)
+            if ~isempty(rows)
+                if nargin<3
+                    cols=1:this.dataSet.C;
+                end
+                if size(rows,1)~=size(this.selected,1)
+                    data=this.dataSet.data(this.selected & rows', cols);
+                else
+                    data=this.dataSet.data(this.selected & rows, cols);
+                end
+            else
+                data=[];
+            end
+        end
+        
         function data=data(this)
             data=this.dataSet.data(this.selected, :);
         end

@@ -37,7 +37,15 @@ start(tmr);
     function dismiss
         javaMethodEDT('setAlwaysOnTop', jd, false);
         if ~isempty(focus)
-            javaMethodEDT('requestFocus',focus);
+            try
+                if isjava(focus)
+                    javaMethodEDT('requestFocus', focus);
+                elseif Gui.IsFigure(focus)
+                    figure(focus);
+                end
+            catch ex
+                ex.getReport
+            end
         end
     end
 end

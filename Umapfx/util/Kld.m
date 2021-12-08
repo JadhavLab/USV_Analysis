@@ -22,6 +22,9 @@ classdef Kld<handle
         plotCols=1;
         plotPanel;
         btnSeePlot;
+        recentHighlighted;
+        recentHighlightedName;
+        densityBars;
     end
     
     properties(GetAccess=private)
@@ -47,6 +50,10 @@ classdef Kld<handle
     end
     
     methods
+        function setDensityBars(this, densityBars)
+            this.densityBars=densityBars;
+        end
+        
         function setExtraScreenCapture(this, fig)
             this.table.setParentFig(fig);
         end
@@ -119,6 +126,11 @@ classdef Kld<handle
         
         function fig=getFigure(this)
             fig=this.table.table.fig;
+        end        
+        
+        function setHighlights(this, data, name)
+            this.recentHighlighted=data;
+            this.recentHighlightedName=name;
         end
         
         function refreshPlotForSelected(this, expecting)
@@ -139,9 +151,14 @@ classdef Kld<handle
                     X=this.selectedRows(1);
                     Y=this.selectedRows(2);
                 end
+                ax_=this.getAxes(this.plotCols);
                 showPolygon(this.recentData, X, Y, ...
-                    [], this.getAxes(this.plotCols), this.columnNames);
+                    [], ax_, this.columnNames);
                 this.plottedRows=this.selectedRows;
+                if ~isempty(this.recentHighlighted)
+                    highlighted=this.recentHighlighted(:, [X Y]);
+                    Gui.Flash(ax_, highlighted, this.recentHighlightedName);
+                end
             elseif nargin==1 || isempty(expecting) % no expectations
                 this.showPlotHelp;
                 this.plottedRows=[];
@@ -177,13 +194,16 @@ classdef Kld<handle
             cla(ax_, 'reset')
             xticklabels(ax_, []);
             yticklabels(ax_, []);
-            text(.5, .5, {'Pick the Y axis \it\bffollowed \rm\itby X\rm', ...
+            H=text(.5, .5, {'Pick the Y axis \it\bffollowed \rm\itby X\rm', ...
                 'axis in the table above to see',...
                 ['a \color{blue}colored \color[rgb]{0 .6 .6}\bf'...
                 'X/Y\color[rgb]{.7 .7 0} plot\color{red} \rmhere...']},...
                 'parent', ax_, ...
                 'HorizontalAlignment', 'center', ...
                 'VerticalAlignment', 'middle');
+            if this.app.highDef
+                set(H, 'FontSize', 8);
+            end
             title(ax_, 'X/Y plot needs 2 selections...');
         end
         function [data, names]=captureData(this, initializing)
@@ -221,7 +241,7 @@ classdef Kld<handle
         end
 
         function this=Kld(data, normalizingScales, columnNames,...
-                columnNamesDescriptor, name, args)
+                columnNamesDescriptor, name, args, densityBars)
             this.app=BasicMap.Global;
             args=[args Kld.ColumnLabels(columnNamesDescriptor)];
             args{end+1}='object_name';
@@ -246,6 +266,9 @@ classdef Kld<handle
                 end
             end
             this.columnNames=columnNames;
+            if nargin>6
+                this.densityBars=densityBars;
+            end
             this.table=TablePicker(this.getData(data), args{:});   
             this.table.setSizeInfo(size(data), name);
             this.recentData=data;
@@ -256,7 +279,7 @@ classdef Kld<handle
             badData=false;
             try
                 [means, stds, medians, mads, mins, maxs, klds, bars]=...
-                    Kld.Compute(data, this.normalizingScales);
+                    Kld.Compute(data, this.normalizingScales, this.densityBars);
             catch ex
                 ex.getReport;
                 badData=true;
@@ -330,27 +353,31 @@ classdef Kld<handle
     methods(Static)
         function this=Table(data, columnNames,normalizingScales, ...
                 parentFig, name, where, columnNamesDescriptor,  ...
-                propertySuffix, modal, pickFnc, visible, warnIfBig)
-            if nargin<12
-                warnIfBig=true;
-                if nargin<11
-                    visible=true;
-                    if nargin<10
-                        pickFnc=[];%likely for Epp, UMAP and MDS
-                        if nargin<9
-                            modal=false;
-                            if nargin<8
-                                propertySuffix='UMAP';
-                                if nargin<7
-                                    columnNamesDescriptor='Dimension';
-                                    if nargin<6
-                                        where='south++';
-                                        if nargin<5
-                                            name='';
-                                            if nargin<4
-                                                parentFig=[];
-                                                if nargin<3
-                                                    normalizingScales=[];
+                propertySuffix, modal, pickFnc, visible, ...
+                warnIfBig, densityBars)
+            if nargin<13
+                densityBars=[];
+                if nargin<12
+                    warnIfBig=true;
+                    if nargin<11
+                        visible=true;
+                        if nargin<10
+                            pickFnc=[];%likely for Epp, UMAP and MDS
+                            if nargin<9
+                                modal=false;
+                                if nargin<8
+                                    propertySuffix='UMAP';
+                                    if nargin<7
+                                        columnNamesDescriptor='Dimension';
+                                        if nargin<6
+                                            where='south++';
+                                            if nargin<5
+                                                name='';
+                                                if nargin<4
+                                                    parentFig=[];
+                                                    if nargin<3
+                                                        normalizingScales=[];
+                                                    end
                                                 end
                                             end
                                         end
@@ -388,7 +415,7 @@ classdef Kld<handle
                     'locate_fig', locate_fig,...
                     'fig_name', [propertySuffix ' ' ...
                     columnNamesDescriptor 'Explorer']...
-                    });
+                    }, densityBars);
                 this.btnSeePlot=btn;
                 this.warnIfBig=warnIfBig;
             catch ex
@@ -409,7 +436,7 @@ classdef Kld<handle
         end
         
         function [means, stds, medians, mads, mins, maxs, klds, bars]...
-                =Compute(data, normalizingScales)
+                =Compute(data, normalizingScales, densityBars)
             means=mean(data, 1);
             stds=std(data, 0, 1);
             medians=median(data, 1);
@@ -428,7 +455,12 @@ classdef Kld<handle
             end
             klds=Kld.ComputeNormalizedVectorized(data, false, 256);
             if nargout>7
-                bars=MatBasics.Density1DQuickAndDirty(data);
+                if nargin>2 && ~isempty(densityBars)
+                    bars=densityBars.go(data);
+                    %bars=MatBasics.Density1DQuickAndDirty(data);
+                else
+                    bars=MatBasics.Density1DQuickAndDirty(data);
+                end
             end
         end
         
@@ -527,6 +559,24 @@ classdef Kld<handle
                 KLD(c)=sum(P.*((log(P))-(log(Q/sum(Q))))) ;
                 probabilityDensities{c}=Q;
             end
+        end
+        
+        
+        
+        function tip=Tip(widthPixels)
+            if nargin<1
+                widthPixels=250;
+            end
+            if BasicMap.Global.highDef
+                widthPixels*1.3;
+            end
+            tip=['<table cellpadding="8" width="' num2str(widthPixels) ...
+                'px"><tr><td><u><b>Kullback-Leibler divergence</b></u> '...
+                '(<font color="blue"><b>KLD</b></font>) measures '...
+                'informativeness.<ul><li>Higher indicates the data '...
+                'has<br>more informative structure. <li>ZERO '...
+                'indicates the data resembles<br>the normal '...
+                'distribution</ul></td></tr></table>'];
         end
     end
 end

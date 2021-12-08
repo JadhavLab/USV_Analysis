@@ -106,9 +106,23 @@ classdef String
                 str=[str ';' strs{i}];
             end
         end
+        
         function strs=DecodeStrs(str)
             strs=strsplit(str, ';');
         end
+        
+        function s=URLDecode(s)
+            s=char(java.net.URLDecoder.decode(s, 'UTF-8'));
+        end
+        
+        function s=URLEncode(s, spaceIsPercent20)
+            s=char(java.net.URLEncoder.encode(s, 'UTF-8'));
+            if nargin>1 && spaceIsPercent20
+                s=strrep(s, '+', '%20');
+            end
+                
+        end
+        
         function ttl=EscapeHtmlTex(in)
             ttl=String.ToLaTex(char(...
                 edu.stanford.facs.swing.Basics.RemoveXml(in)));
@@ -1058,7 +1072,7 @@ classdef String
             %   See also TEXTWRAP.
 
             % Steven L. Eddins
-            % $Revision: 1.32 $  $Date: 2021/11/01 23:58:32 $
+            % $Revision: 1.33 $  $Date: 2021/11/26 00:42:19 $
 
             error(nargchk(1, 2, nargin));
 

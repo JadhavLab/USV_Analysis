@@ -276,9 +276,11 @@ classdef PopUp < handle
             this.app=BasicMap.Global;
             this.priorFig=get(0, 'currentFigure');
             this.main=Gui.BorderPanel(5, 5);
+            delayVisible=false;
             if isempty(priorPu)
                 this.main.setBorder(javax.swing.BorderFactory.createEmptyBorder (12,12,12,12));
-                jd=javaObjectEDT('javax.swing.JDialog', Gui.ParentFrame(this.app));
+                [jw,~,delayVisible]=Gui.ParentFrame(this.app);
+                jd=javaObjectEDT('javax.swing.JDialog', jw);
                 if ~isempty(ttl)
                     jd.setTitle(ttl);
                 end
@@ -333,7 +335,9 @@ classdef PopUp < handle
                 end
             end
             if ~modal
-                Gui.SetJavaVisible(jd);
+                if ~delayVisible
+                    Gui.SetJavaVisible(jd);
+                end
             else
                 jd.setModal(true);
             end
@@ -810,9 +814,10 @@ classdef PopUp < handle
             end
             app=BasicMap.Global();
             isFreeFloating=false;
+            delayVisible=false;
             if nargin<4 || isempty(javaWin)
                 if nargin<7 || ~suppressParent
-                    javaWin=Gui.ParentFrame(app);
+                    [javaWin,~,delayVisible]=Gui.ParentFrame(app);
                 else
                     isFreeFloating=true;
                 end
@@ -849,7 +854,8 @@ classdef PopUp < handle
             if ~ispc %Florian and others note this is a problem 
                 setAlwaysOnTopTimer(jd);
             end
-            if nargin>=6 && ~isempty(pauseSecs)
+            if delayVisible
+            elseif nargin>=6 && ~isempty(pauseSecs)
                 PopUp.TimedClose(jd, pauseSecs, pane, stripActions);
             else
                 try

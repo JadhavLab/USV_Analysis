@@ -419,16 +419,18 @@ classdef SortTable < handle
             end
         end
 
-        function idxs=SelectedRows(jt, orUnselectedToo)
+        function [idxs, gotUnselected]=SelectedRows(jt, orUnselectedToo)
             if nargin<2
                 orUnselectedToo=false;
             end
+            gotUnselected=false;
             rows=jt.getSelectedRows;
             N=length(rows);
             if N==0
                 if orUnselectedToo
                     N=jt.getRowCount;
                     rows=0:N-1;
+                    gotUnselected=true;
                 else
                     idxs=[];
                     return;

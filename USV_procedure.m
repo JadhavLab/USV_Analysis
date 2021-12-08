@@ -93,48 +93,8 @@ segment usvs, dont fuck with it, it should just work.
 
 % this basically takes the deepsqueak data, compares them to usvseg data,
 % and then removes calls that suck...
-edit usvsegDetect
 
-% and to implement the usvsegDetect:
-
-wavfiledir='G:\USV data\Raw\wav';
-wavfilenames=getAllFiles(wavfiledir);
-fileinfo=dir(wavfiledir); fileinfo([fileinfo.isdir])=[];
-outdir='G:\USV data\segData';
-if ~isfolder(outdir)
-    mkdir('G:\USV data\segData');
-end
-nameadd='_callData';
-bigclock=tic;
-wb=waitbar(0,'Starting to build each session');
-for i=427:length(wavfilenames)
-    smallclock=tic;
-    audiodata=audioinfo(wavfilenames{i});
-    
-    sessdata=rmfield(fileinfo(i),{'bytes','isdir'});
-    myfilename=sessdata.name;
-    unders=find(myfilename=='_' | myfilename=='-');
-    sessdata.Cohort=str2double(myfilename(2:unders(1)-1)); % cohort
-    sessdata.Age=str2double(myfilename(unders(1)+2:unders(2)-1)); % age
-    % pull rat name from file name
-    sessdata.Ratname=myfilename(unders(2)+1:end-4);
-    
-    [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
-    % spect is the flattened centered im, thrshd is the pix that pass
-    % threshold after masking
-    
-    segCalls=table(onoffset(:,1),onoffset(:,2),ones(size(onoffset,1),1),...
-        'VariableNames',{'onsetTime','offsetTime','Accept'});
-    
-    calldata=getCallStats(segCalls,params,spect,thrshd);
-    
-    % reduce the data size of the spect
-    spect=uint8(rescale(spect)*256);
-    save(fullfile(outdir,[sessdata.name(1:end-4) nameadd]),...
-        'audiodata','params','spect','blobs','segCalls','calldata');
-    waitbar(i/length(wavfilenames),wb,sprintf('Its taken %d minutes, Likely %d more',...
-        round(toc(bigclock)/60),round(toc(smallclock)*(length(wavfilenames)-i)/60)));
-end
+getCallTimes;
 
 % the next step i think would be to get all the binary images and turn them
 % into a smaller vector (like they do in deepsqueak using a vae)
@@ -175,7 +135,7 @@ for i=1:length(statfiles)
     elseif length(sameRat)>1
        fprintf('Ran into multiple matches for %d %s \n', sessdata.cohort,sessdata.ratname);
        fprintf('   %s \n',USVrecordings.Aliases(sameRat,:)');
-       fprintf('Choosing first \n \n')
+       fprintf('Choosing first; %s \n \n',USVrecordings.Aliases(sameRat(1),:)')
        filedata=[struct2table(sessdata) USVrecordings(sameRat(1),:)];
     else
        fprintf('Ran into no matches for %d %s \n', sessdata.cohort,sessdata.ratname);
@@ -185,10 +145,12 @@ end
 
 %%
 
+edit normalDevelopment
+% USVlegend is saved in USVmetadataC1-9.at
 % lets take just the males, and just between P4 to P10
 % this is hardcoded for now, but suffice to say its going to be 600 msec
 % images from 15 khz to 90 khz
-runSess=USVlegend(lower(USVlegend.Sex)=='m' & USVlegend.age<13,:);
+runSess=USVlegend; %(lower(USVlegend.Sex)=='m' & USVlegend.age<13,:);
 allcalls=[]; allCallinfo=[];
 wb=waitbar(0,'concatenating ALL the images');
 % what percentage of images will we need to classify these guys????
@@ -233,28 +195,15 @@ edit generate_VAE_encoder
 % first will need to pull a random set of usvs to generate our model.  This
 % is throttled by the size of the gpu i guess...
 
-batchsize=20000; 
-
-% 1. generate random sampling
-randpull=randperm(size(allcalls,4));
-trainingstack=allcalls(:,:,:,randpull(1:batchsize));
-
 % 2. build encoder and decoder using those images
-[encoderNet,decoderNet,data] = generate_VAE_encoder(trainingstack);
+[encoderNet,decoderNet,data] = generate_VAE_encoder(allcalls);
 
-clear trainingstack;
-% 3. run the encoder throguh ALL images
-batchinds=[[1 batchsize+1:batchsize:size(allcalls,4)]' [batchsize:batchsize:size(allcalls,4) size(allcalls,4)]'];
-callData=[];
-for i=1:size(batchinds,1)
-    [~,~,batchData]=generate_VAE_encoder(allcalls(:,:,:,batchinds(i,1):batchinds(i,2)),encoderNet,decoderNet,1);
-    callData=[callData; batchData];
-end
+% save encodernet and decodernet!!
 
 % 4. put the callduration back in
 % 32 dims, 33rd is callduration, and allCallinfo is session and call number
 % from runSess;
-callData=[callData allCallinfo(:,1)];
+callData=[data allCallinfo(:,1)];
 
 % 5. see if any of these predict genotype
 % gather our genotypes

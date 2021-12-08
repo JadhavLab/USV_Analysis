@@ -70,7 +70,7 @@ end
 if all(whichOnes==0)
     whichOnes = 1:N_EXAMPLES;
 end
-args={'verbose', verbose, varargin{:}};
+args=[{'verbose'}, {verbose}, varargin(:)'];
 if ismember(1, whichOnes)
     disp('run_umap Example 1 starting...');
     [reduction, umap, clusterIds, extras]=run_umap;
@@ -155,29 +155,29 @@ if ismember(12, whichOnes)
 end
 if ismember(13, whichOnes)
     disp('run_umap Example 13 starting...');
-    run_umap('sample30k.csv', args{:});
-    [reduction, umap, clusterIds, extras]=run_umap('sample30k.csv', 'python', true, args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sample30k.csv', 'python', false, 'hide_reduction_time', false,  args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sample30k.csv', 'python', true, 'hide_reduction_time', false,  args{:});
     disp('run_umap Example 13 completed with no MATLAB exceptions!');
     
 end
 if ismember(14, whichOnes)
     disp('run_umap Example 14 starting (just MEX first)...');
-    [reduction, umap, clusterIds, extras]=run_umap('sampleBalbcLabeled55k.csv', 'label_column', 11, 'label_file', 'balbcLabels.properties', 'save_template_file', 'ustBalbc2D.mat', args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sampleBalbcLabeled55k.csv', 'label_column', 11, 'label_file', 'balbcLabels.properties', 'save_template_file', 'ustBalbc2D.mat', 'hide_reduction_time', false, args{:});
     disp('run_umap Example 14 (just MEX) completed with no MATLAB exceptions!');
 end
 if ismember(15, whichOnes)
     disp('run_umap Example 15 starting (just MEX first)...');
-    [reduction, umap, clusterIds, extras]=run_umap('sampleRag55k.csv', 'template_file', 'ustBalbc2D.mat', args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sampleRag55k.csv', 'template_file', 'ustBalbc2D.mat', 'hide_reduction_time', false, args{:});
     disp('run_umap Example 15 (just MEX) completed with no MATLAB exceptions!');
 end
 if ismember(14, whichOnes)
     disp('run_umap Example 14 starting (with Python)...');
-    [reduction, umap, clusterIds, extras]=run_umap('sampleBalbcLabeled55k.csv', 'label_column', 11, 'label_file', 'balbcLabels.properties', 'python', true, 'save_template_file', 'pyUstBalbc2D.mat', args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sampleBalbcLabeled55k.csv', 'label_column', 11, 'label_file', 'balbcLabels.properties', 'python', true, 'save_template_file', 'pyUstBalbc2D.mat', 'hide_reduction_time', false, args{:});
     disp('run_umap Example 14 (with Python) completed with no MATLAB exceptions!');
 end
 if ismember(15, whichOnes)
     disp('run_umap Example 15 starting (with Python)...');
-    [reduction, umap, clusterIds, extras]=run_umap('sampleRag55k.csv', 'template_file', 'pyUstBalbc2D.mat', args{:});
+    [reduction, umap, clusterIds, extras]=run_umap('sampleRag55k.csv', 'template_file', 'pyUstBalbc2D.mat', 'hide_reduction_time', false, args{:});
     disp('run_umap Example 15 (with Python) completed with no MATLAB exceptions!');
 end
 if ismember(16, whichOnes)
@@ -255,6 +255,11 @@ if ismember(23.5, whichOnes)
     compareBasicReductions('omip69Labeled200k');  
 end
 
+if ismember(23.6, whichOnes)
+    compareBasicReductions('panoramaLabeled');  
+end
+
+
 if ismember(24, whichOnes)
     disp('run_umap Example 24 starting...');
     [reduction, umap, clusterIds, extras]=run_umap('s1_omip69_35D.csv', 'label_column', 'end', 'label_file',  's1_omip69_35D.properties', 'match_scenarios', 4, 'cluster_detail', 'medium', args{:});
@@ -288,11 +293,11 @@ if ismember(28, whichOnes)
     epp=run_epp('eliverLabeled.csv', 'label_column', 'end',  'cytometer',  'conventional', 'min_branch_size', 150, 'umap_option', 6, 'cluster_detail', 'medium', 'match_predictions', true, 'rebuild_automatically', true, 'explore_hierarchy', explore);
     [testSetWins, nPredicted, means]=epp.getPredictionSummary;
     if length(means)==3
-        fprintf(['EPP prediction of prior classification:   similarity true+/false+/false-:  %3.1f%%/%3.1f%%/%3.1f%%; test set wins %d/%d!\n'],  means(1), means(2), means(3), testSetWins, nPredicted);
+        fprintf('EPP prediction of prior classification:   similarity true+/false+/false-:  %3.1f%%/%3.1f%%/%3.1f%%; test set wins %d/%d!\n',  means(1), means(2), means(3), testSetWins, nPredicted);
     end
     [testSetWins, nPredicted, means]=epp.getUmapPredictionSummary;
     if length(means)==3
-        fprintf(['UMAP prediction of prior classification:  similarity true+/false+/false-:  %3.1f%%/%3.1f%%/%3.1f%%; Test set wins %d/%d!\n'],  means(1), means(2), means(3), testSetWins, nPredicted);
+        fprintf('UMAP prediction of prior classification:  similarity true+/false+/false-:  %3.1f%%/%3.1f%%/%3.1f%%; Test set wins %d/%d!\n',  means(1), means(2), means(3), testSetWins, nPredicted);
     end
     disp('run_umap Example 28 completed with no MATLAB exceptions!');
 end

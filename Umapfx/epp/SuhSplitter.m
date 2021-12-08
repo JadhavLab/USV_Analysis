@@ -151,13 +151,23 @@ classdef SuhSplitter < SuhAbstractClass
             end
         end
         
-        function ax=plot(this, ax, subset, X, Y, split_string, ttl)
+        function [ax, highlights, highlightName]=plot(this, ax, ...
+                subset, X, Y, split_string, ttl, predictions)
             if nargin<7
                 ttl=[num2str(subset.size) ...
                     'x' num2str(this.dataSet.C)];
             end
             showPolygon(subset.data, X,Y,[], ... %empty polygon
                 ax,subset.dataSet.columnNames, ttl);
+            if nargin>7 && ~isempty(predictions)
+                highlightName=predictions.selectedName;
+                Gui.Flash(ax, subset.filter(...
+                    predictions.selectedData, [X Y]), predictions);
+                highlights=subset.filter(predictions.selectedData);
+            else
+                highlights=[];
+                highlightName='';
+            end
             split=this.to_data(split_string);
             if ~isempty(split)
                 this.showSplit(ax, split);
@@ -165,7 +175,7 @@ classdef SuhSplitter < SuhAbstractClass
         end
         
         function ax=plotSelected(this, ax, subset, X, Y, split_string, ...
-                not, ttl)
+                not, ttl, predictions)
             if nargin<8
                 ttl=[num2str(subset.size) ...
                     'x' num2str(this.dataSet.C)];
@@ -190,6 +200,11 @@ classdef SuhSplitter < SuhAbstractClass
                     'MarkerEdgeColor', clr,...
                     'MarkerFaceColor', clr);
             end
+            if nargin>8 && ~isempty(predictions)
+                highlighted=subset.filter(predictions.selectedData, [X Y]);
+                Gui.Flash(ax, highlighted, predictions);
+            end
+            
         end
         
         function loadProperties(this, props)

@@ -300,6 +300,7 @@ classdef ClusterPlots < Plots
                         if hasPriorFig ~isempty(plots.fig)
                             app.currentJavaWindow=was;
                             SuhWindow.Follow(jl, plots.fig, 'east++');
+                            Gui.SetJavaVisible(jl);
                         end
                         
                         btnLbls=plots.clues(sortI);

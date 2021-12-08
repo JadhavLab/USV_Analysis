@@ -882,8 +882,12 @@ classdef Gui
                 end
             end
             if BasicMap.Global.highDef
-                hGap=hGap+4;
-                vGap=vGap+4;
+                if hGap>0
+                    hGap=hGap+4;
+                end
+                if vGap>0
+                    vGap=vGap+4;
+                end
             end
             fl=java.awt.FlowLayout(java.awt.FlowLayout.CENTER, hGap, vGap);
             pnl=javaObjectEDT('javax.swing.JPanel', fl);
@@ -899,8 +903,12 @@ classdef Gui
                 end
             end
             if BasicMap.Global.highDef
-                hGap=hGap+4;
-                vGap=vGap+4;
+                if hGap>0
+                    hGap=hGap+4;
+                end
+                if vGap>0
+                    vGap=vGap+4;
+                end
             end
             fl=java.awt.FlowLayout(java.awt.FlowLayout.LEFT, hGap, vGap);
             pnl=javaObjectEDT('javax.swing.JPanel', fl);
@@ -919,8 +927,12 @@ classdef Gui
                 end
             end
             if BasicMap.Global.highDef
-                hGap=hGap+4;
-                vGap=vGap+4;
+                if hGap>0
+                    hGap=hGap+4;
+                end
+                if vGap>0
+                    vGap=vGap+4;
+                end
             end
             if isempty(flow)
                 flow=java.awt.FlowLayout.LEFT;
@@ -969,8 +981,12 @@ classdef Gui
                 jp=priorPnl;
             elseif nargin>=3
                 if BasicMap.Global.highDef
-                    hGap=hGap+4;
-                    vGap=vGap+4;
+                    if hGap>0
+                        hGap=hGap+4;
+                    end
+                    if vGap>0
+                        vGap=vGap+4;
+                    end
                 end
                 if isempty(priorPnl)
                     jp=javaObjectEDT('javax.swing.JPanel', ...
@@ -1000,8 +1016,12 @@ classdef Gui
                 end
             elseif nargin==2
                 if BasicMap.Global.highDef
-                    hGap=hGap+4;
-                    priorPnl=priorPnl+4;
+                    if hGap>0
+                        hGap=hGap+4;
+                    end
+                    if priorPnl>0
+                        priorPnl=priorPnl+4;
+                    end
                 end
                 jp=javaObjectEDT('javax.swing.JPanel', ...
                     javaObjectEDT('java.awt.BorderLayout', priorPnl, hGap));
@@ -1174,6 +1194,7 @@ classdef Gui
             end
             nAnchors=length(anchors);
             gbc.fill=0;
+            gbc.ipadx=10;
             nCmps=length(varargin);
             row=1;
             col=1;
@@ -4230,6 +4251,24 @@ classdef Gui
             end
         end
             
+        function [jScroll, jLbl]=HtmlScrollLabel(html, width, height, app)
+            if nargin<4
+                app=BasicMap.Global;
+                if nargin<3
+                    height=400;
+                    if nargin<2
+                        width=600;
+                    end
+                end
+            end
+            if ~startsWith(html, '<html>');
+                jLbl=Gui.Label(['<html><body bgcolor="white">' html '</body></html>']);
+            else
+                jLbl=Gui.Label(html);
+            end
+            jScroll=Gui.Scroll(jLbl, width, height, app); 
+        end
+        
         function jScroll=Scroll(cmp, width, height, app)
             jScroll=javaObjectEDT('javax.swing.JScrollPane', cmp);
             if nargin>1
@@ -4618,14 +4657,17 @@ classdef Gui
                 return;
             end
             try
-                old=jd.getLocation;
-                MatBasics.RunLater(@(h,e)handleMac, .3);
+                if ismac
+                    old=jd.getLocation;
+                    MatBasics.RunLater(@(h,e)handleMac, .3);
+                end
                 jd.setVisible(true);
                 drawnow;
             catch ex
             end
             function handleMac
-                if ~old.equals(jd.getLocation) %wierd issue with java 7 and MAC 2 phycical screens
+                 %wierd issue with java 7 and MAC 2 phycical screens
+                if ~old.equals(jd.getLocation)
                     if Gui.DEBUGGING
                         jd.getLocation
                         jd.setLocation(old);
@@ -4829,8 +4871,10 @@ classdef Gui
             d=pnl.getPreferredSize;
             midRight=w/2+(d.width*.8);
         end
-        function [jFrame, p]=ParentFrame(app)
+        function [jFrame, p, none]=ParentFrame(app)
             try
+                none=false;
+                p=[];
                 if nargin<1
                     app=BasicMap.Global;
                 end
@@ -4839,6 +4883,7 @@ classdef Gui
                     return;
                 elseif strcmpi('none', BasicMap.Global.currentJavaWindow)% HACK!
                     jFrame=[]; % no parent!
+                    none=true;
                     return;
                 end
             catch
@@ -5418,12 +5463,27 @@ classdef Gui
             end
             compoundBorder=javax.swing.BorderFactory.createCompoundBorder(...
                 lineBorder,emptyBorder);
+            fontAttr=java.awt.Font.PLAIN;
+            if BasicMap.Global.highDef
+                fontSz=BasicMap.Global.toolBarFactor * 11;
+            else
+                fontSz=11;
+            end
+            if isequal(font, 'bold')
+                fontAttr=java.awt.Font.BOLD;
+                fontSz=fontSz+1;
+                font=[];
+            end
+            if isequal(font, 'italic')
+                fontAttr=java.awt.Font.ITALIC;
+                fontSz=fontSz+1;
+                font=[];
+            end
             if isempty(font)
                 if BasicMap.Global.toolBarFactor >0
-                    font=java.awt.Font('Arial', java.awt.Font.PLAIN, ...
-                        BasicMap.Global.toolBarFactor * 11);
+                    font=java.awt.Font('Arial', fontAttr, fontSz);
                 else
-                    font=java.awt.Font('Arial', java.awt.Font.PLAIN, 11);
+                    font=java.awt.Font('Arial', fontAttr, fontSz);
                 end
             end
             border2=javax.swing.BorderFactory.createTitledBorder(...
@@ -5920,6 +5980,115 @@ classdef Gui
         function ok = IsFigure(h)
             ok=~isjava(h) && ~isempty(h) && ishandle(h) ...
                 && strcmp(get(h,'type'),'figure');
+        end
+        
+        function H=Flash(ax, D, name, offWhenDone, times, clr, mrkr, ms)
+            if nargin<8
+                ms=4;
+                if nargin<7
+                    mrkr='.';
+                    if nargin<6
+                        clr=[.9 1 .2];
+                        if nargin<5
+                            times=8;
+                            if nargin<4
+                                offWhenDone=false;
+                                if nargin<3
+                                    name='selection(s)';
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            isVisible=isequal('on', ax.Parent.Visible);
+            highDef=BasicMap.Global.highDef;
+            if isVisible && ~highDef
+                 clrStr=['\fontsize{16}\bf\color[rgb]{' String.Num2Str(clr,',') '}\bullet\bullet\bullet'];
+            else
+                clrStr=['\bf\color[rgb]{' String.Num2Str(clr,',') '}\bullet\bullet\bullet'];
+            end
+            ttl=get(ax, 'title');
+            ttlFs=ttl.FontSize;
+            ttlStr=ttl.String;
+            if isempty(D)
+                if iscell(ttlStr)
+                    if endsWith( ttlStr{end}, [clrStr '}'])
+                        ttlStr(end)=[];
+                        ttl.String=ttlStr;
+                    end
+                end
+                H=[];
+                return;
+            end
+            hasPredictionsObj= isa(name, 'SuhPredictions');
+            if hasPredictionsObj
+                predictions=name;
+                name=predictions.selectedName;
+            end
+            name=String.RemoveTex(name);
+            secs=.1;
+            hold(ax, 'on');
+            if size(D,2)==3
+                H=plot3(ax, D(:,1), D(:,2), D(:,3), 'LineStyle', 'none', ...
+                    'marker', mrkr, 'MarkerSize', ms, 'Color', clr, ...
+                    'MarkerFaceColor', clr, 'MarkerEdgeColor', clr);
+            else
+                H=plot(ax, D(:,1), D(:,2), 'LineStyle', 'none', ...
+                    'marker', mrkr, 'MarkerSize', ms, 'Color', clr, ...
+                    'MarkerFaceColor', clr, 'MarkerEdgeColor', clr);
+            end
+            if hasPredictionsObj
+                predictions.rememberHighlights(H, ttl, ttlStr);
+            end
+            if times>0
+                strSize=String.encodeK(size(D,1));
+                subTtl=['^{' strSize ' ' name clrStr '}' ];
+                if iscell(ttlStr)
+                    if endsWith( ttlStr{end}, [clrStr '}'])
+                        ttlStr{end}=subTtl;
+                    else
+                        ttlStr{end+1}=subTtl;
+                    end
+                else
+                    ttlStr={ttlStr, subTtl};
+                end
+                if isVisible                    
+                    ttl.String={[strSize ' data points'], ...
+                        ['from ' name]};
+                    if ~highDef
+                        ttl.FontSize=16;
+                    else
+                        ttl.FontSize=11;
+                    end
+                    MatBasics.RunLater(@(h,e)flash(), secs)
+                else
+                    ttl.String=ttlStr;
+                end
+            end
+            
+            function flash
+                if times>0
+                    off=mod(times, 2)==0;
+                    ms2=ms+(times*1.5);
+                    times=times-1;
+                    MatBasics.RunLater(@(h,e)flash(), secs)
+                else
+                    off=offWhenDone;
+                    ttl.Visible='on';
+                    ttl.FontSize=ttlFs;
+                    ttl.String=ttlStr;
+                    ms2=ms;
+                end
+                try
+                if off
+                    set(H, 'visible', 'off');
+                else
+                    set(H, 'visible', 'on', 'MarkerSize', ms2);
+                end
+                catch
+                end
+            end
         end
     end
 end

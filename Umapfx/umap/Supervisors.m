@@ -26,12 +26,13 @@ classdef Supervisors < handle
         context;
         knnIndices;
         supervisingMean;
-        supervisedMean
+        supervisedMean;
         verbose='graphic';
         btns;
         btnLbls;
         plots;
         roiTable;
+        probability_bins;
     end
     
     properties(SetAccess=private)
@@ -295,7 +296,8 @@ classdef Supervisors < handle
                     if isSigId(i)
                         sig_idx = sig_idx + 1;
                         key=num2str(id);
-                        names{sig_idx}=this.labelMap.get(java.lang.String(key));
+                        names{sig_idx}=strtrim(char(this.labelMap.get(...
+                            java.lang.String(key))));
                         if isempty(names{sig_idx})
                             names{sig_idx}=key;
                         end
@@ -922,7 +924,8 @@ classdef Supervisors < handle
                     end
                     color=clusterColors(clustId);
                 else
-                    name=this.labelMap.get(java.lang.String(key));
+                    name=strtrim(char(this.labelMap.get(...
+                        java.lang.String(key))));
                     if doHtml
                         if String.Contains(name, '^{')
                             name=strrep(name, '^{', '<sup>');
@@ -1310,7 +1313,8 @@ classdef Supervisors < handle
                 qf=run_HiD_match(tUnreducedData, tLbls,...
                     sUnreducedData, sLbls, 'trainingNames', tNames, ...
                     'matchStrategy', matchStrategy, 'log10', true, ...
-                    'testNames', sNames, 'pu', pu2);
+                    'testNames', sNames, 'pu', pu2, ...
+                    'probability_bins', this.probability_bins);
             end
             if predictions
                 if isempty(pu)

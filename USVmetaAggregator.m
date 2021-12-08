@@ -1,4 +1,4 @@
-%% Import data from spreadsheet
+%% Import metadata from spreadsheet
 
 
 % to just import the data in aggregate

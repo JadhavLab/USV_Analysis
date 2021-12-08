@@ -32,8 +32,12 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -44,7 +48,7 @@ import javax.swing.JProgressBar;
 import javax.swing.SwingUtilities;
 
 public class WebDownload {
-
+	public static String DefaultGoogleDirUrl="https://drive.google.com/file/d/1r_ByRnrq7SWvfLa2uGdwE31IY1ClXVdy/view?usp=sharing";
 	public String googleDirUrl=null; // if NULL then use default
     public static void main(final String[] args) {
     	Test.main(args);
@@ -57,7 +61,11 @@ public class WebDownload {
     	final WebDownload d=new WebDownload();
     	d.allowCancel=false;
     	d.waitWhenDone=true;
-    	final String link=
+    	String link="https://drive.google.com/Samples/OMIP40Color/MC%203015036.fcs", 
+    			link2="https://drive.google.com/Samples/OMIP40Color/MC%20303444.fcs";
+    	d.go(new String[] {link2},new String[] {"/Users/swmeehan/omip40_2nd.fcs"}, true);
+    	d.go(new String[] {link},new String[] {"/Users/swmeehan/omip40_1st.fcs"}, true);
+    	link=
     			"https://drive.google.com/uc?export=download&id=189nZplhvj804H2M4KPBz6vjU2JOTvHCk";
     	//final String link0="https://drive.google.com/run_umap/examples/s10_samusikImported_29D.csv";
     	//final String link0="https://drive.google.com/run_umap/examples/colorsByName.properties";
@@ -68,7 +76,7 @@ public class WebDownload {
     	//final String link0="http://cgworkspace.cytogenie.org/run_umap/examples/sample30k.csv";
     	d.go(new String[] {link0},new String[] {"/Users/swmeehan/s10.csv"}, true);
     	final String link1="https://drive.google.com/file/d/189nZplhvj804H2M4KPBz6vjU2JOTvHCk/view?usp=sharing";
-    	final String link2="https://filetransfer.io/data-package/GGamU3ZY?do=download";
+    	link2="https://filetransfer.io/data-package/GGamU3ZY?do=download";
     	d.connect(link1, null);
     	if (args.length<3) {
     		//final String fldr="http://cgworkspace.cytogenie.org/run_umap/examples/";
@@ -124,6 +132,7 @@ public class WebDownload {
     final int readSize=8192;
     
     public WebDownload() {
+    	googleDirUrl=DefaultGoogleDirUrl;
     	progressBar = new JProgressBar();
         progressBar.setMaximum(100000);
         panel=new JPanel(new BorderLayout(10,10));
@@ -162,6 +171,9 @@ public class WebDownload {
     
         public boolean cancelled=false, done=false;
     public int bad=0;
+    public Map<String, ArrayList<Con>>tooBigLocalFolderByRemoteFile=new HashMap<>();
+    public Map<String, HashSet<String>>tooBigLocalFolderByRemoteFolder=new HashMap<>();
+    public Collection<String>tooBigFiles=new ArrayList<>();
     public final Collection<String> problems=new ArrayList<>();
     public String getProblemHtml() { 
     	return "<html><h3>Download problems encountered:</h3>"
@@ -287,11 +299,11 @@ public class WebDownload {
 								if (N==1)
 									north.setText("<html><b>Downloading"  
 											+": <font color='#008866['><i>"
-											+fn[idx]+"</i></font></b></html>");
+											+fn[idx].replace("%20", " ")+"</i></font></b></html>");
 								else
 									north.setText("<html><b>Downloading " + (idx+1) + "/" 
 											+ N +": <font color='#008866['><i>"
-											+fn[idx]+"</i></font></b></html>");
+											+fn[idx].replace("%20", " ")+"</i></font></b></html>");
 							}
 						});
 						final long needToGet=con.size;
@@ -324,7 +336,28 @@ public class WebDownload {
 							if (got!=needToGet && con.size>0) {
 								if (con.url.startsWith(GoogleDriveDir.drive))
 									needToRefreshGoogleDir=true;
-								
+									if (got<10000l && con.size > 98l*1024l) {
+										if (fileUrls[i].startsWith(GoogleDriveDir.drive)) {
+											final String localFolder=new File(localFile).getParent();
+											{
+												ArrayList<Con>l=tooBigLocalFolderByRemoteFile.get(localFolder);
+												if (l==null) {
+													l=new ArrayList<>();
+													tooBigLocalFolderByRemoteFile.put(localFolder, l);
+												}
+												l.add(con);
+											}
+											if (con.folderUrl!=null) {
+												HashSet<String>l2=tooBigLocalFolderByRemoteFolder.get(localFolder);
+												if (l2==null) {
+													l2=new HashSet<>();
+													tooBigLocalFolderByRemoteFolder.put(localFolder, l2);
+												}
+												l2.add(con.folderUrl);
+											}
+											tooBigFiles.add(localFile);
+										}
+									}
 									System.err.println(""+got+" of "+needToGet+" bytes downloaded!");
 								//completed=false;
 							}
@@ -576,6 +609,7 @@ public class WebDownload {
     public static class Con{
     	public HttpURLConnection http;
     	public final String url;
+    	public String driveKey, sharingUrl, folderUrl;
     	public final long size; 
     	
     	Con(final String url){
@@ -653,10 +687,14 @@ public class WebDownload {
     		return true;
         }
     	
+    	public static String DefaultGoogleDirLocalFile=null;
         public static String GetPropsFileName() {
-        	String currentUsersHomeDir = System.getProperty("user.home");
-        	String s= currentUsersHomeDir + File.separator + ".googleDriveDir.properties";
-        	return s;
+        	if (DefaultGoogleDirLocalFile==null) {
+        		String currentUsersHomeDir = System.getProperty("user.home");
+        		String s= currentUsersHomeDir + File.separator + ".googleDriveDir.properties";
+        		DefaultGoogleDirLocalFile=s;
+        	}
+        	return DefaultGoogleDirLocalFile;
         }
         
         public static boolean DownloadProps(String googleDirUrl, 
@@ -731,10 +769,22 @@ public class WebDownload {
         				idx=v.indexOf(' ');
         				if (idx>0) {
         					final String s1=v.substring(0, idx);
-        					final String s2=ConvertSharingToExportIfNecessary(v.substring(idx+1));
+        					final String sharingUrl=v.substring(idx+1).trim();
+        					final String s2=ConvertSharingToExportIfNecessary(sharingUrl);
         					try {
         						final long l=Long.parseLong(s1);
         						out=new Con(s2, l, problems);
+        						out.sharingUrl=sharingUrl;
+        						out.driveKey=in;
+        						String parent=new File(filePath).getParent();
+        						parent=props.getProperty(parent);
+        						if (parent != null) {
+        							final int idx2=parent.indexOf(' ');
+        							if (idx2>0) {
+        								out.folderUrl=parent.substring(idx2+1).trim();
+        							}
+        							
+        						}
         					}catch(final Exception e) {
 
         					}

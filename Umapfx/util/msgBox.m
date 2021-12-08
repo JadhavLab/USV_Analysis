@@ -72,10 +72,10 @@ if ~isempty(sw)
     firstBtn=Gui.FindFirst(jd, btnClass, 'Ok');
     if ~isempty(firstBtn)
         jp=firstBtn.getParent;
-        jp2=Gui.Panel;
-        jp2.add(firstBtn);
-        jp.add(jp2);
-        jp.add(sw);
+        jp.setLayout(java.awt.BorderLayout(0,0));
+        jp2=Gui.FlowLeftPanel(0,0, firstBtn);
+        jp.add(jp2, 'East');
+        jp.add(sw, 'West');
         jd.pack;
     end
 end

@@ -13,6 +13,10 @@ properties(Constant)
     FALSE_POS=.2;
     TRUE_POS=.1;
     DEBUG=false;
+    PROP_PREDICTIONS='SuhPredictions';  %used in AutoGate to store GID of student parent gate
+    PROP_PREDICTED='SuhPredictor';%used in AutoGate to store GID of teacher subset predicted
+    PROP_PREDICTION='SuhPrediction';%used in AutoGate to store 1 of "true +", "false +", "false -" 
+    
 end
 properties(SetAccess=private)
     R;
@@ -28,11 +32,12 @@ properties(SetAccess=private)
     ids;
     contentPane;
     columnName;
+    fncSelected;
+    table; %instance of QfTable  for original match on same data
+    extraComponent;
+    remindReadings=true;
 end
 
-properties
-    table; %instance of QfTable  for original match on same data
-end
 methods
     function this=SuhPredictions(match)
         this.sums=[];
@@ -40,6 +45,15 @@ methods
         this.R=size(this.match.tData,1);
         this.nTeachers=length(this.match.tNames);
         this.prepare;
+    end
+    
+    
+    function setSelectionListener(this, fncSelected)    
+        this.fncSelected=fncSelected;
+    end
+    
+    function addStackerComponent(this, cmp)
+        this.extraComponent=cmp;
     end
     
     function clearMatchObject(this)
@@ -55,6 +69,20 @@ methods
             this.match=match;
         end
     end
+    
+    function tName=getPredictedName(this, predictedId)
+        ti=find(this.match.tIds==predictedId, 1);
+        tName=this.match.tNames{ti};
+    end
+    
+    function compress(this)
+        this.matchPosNeg.compress;
+    end
+
+    function decompress(this)
+        this.matchPosNeg.decompress;
+    end
+
     function [similarity, overlap, tName, tId, ti, si, words]=describe(this, id)
         qf=this.matchPosNeg;
         tId=floor(id);
@@ -62,11 +90,11 @@ methods
         tName=qf.tNames{ti};
         strId=num2str(id);
         if endsWith(strId, '.3') % false -
-            word='false negatives';
+            word='false-';
         elseif endsWith(strId, '.2') % false +
-            word='false positives';
+            word='false-';
         elseif endsWith(strId, '.1') % true +
-            word='true positives';
+            word='true+';
         else % training set
             similarity=nan;
             overlap=nan;
@@ -77,6 +105,12 @@ methods
         si=find(qf.sIds==id,1);
         overlap=1-qf.matrixUnmerged(si,ti);
         similarity=1-qf.distance(id, tId);
+        if similarity<0
+            fprintf(['For "%s %s" the similarity is %s... '...
+                'less than zero...fast approximation effect.\n'], tName, ...
+                word, String.encodeRounded(similarity, 2));
+            similarity=0;
+        end
         if nargout>6
             words=['<b>' word '</b> are ' ...
                 ' <u>' String.encodePercent(similarity, 1,1) ...
@@ -84,39 +118,29 @@ methods
                 '</i>" (' String.encodePercent(overlap,1,1) ' overlap)'];
         end
     end
-    
-    function selected(this, ids)
-        qf=this.matchPosNeg;
-        N=length(ids);
-        bullets={};
-        for i=1:N
-            [~,~,~,~,~,~,words]=this.describe(ids(i));
-            if ~isempty(words)
-                bullets{end+1}=words;
-            end
-        end
-        if ~isempty(bullets)
-            if N==1
-                tip=bullets{1};
-            else
-                tip=Html.ToListItemsAreHtml(bullets, 'ul');
-            end
-            if isempty(this.contentPane)
-                this.contentPane=...
-                    Gui.JWindow(this.tablePosNeg.fig).getContentPane;
-            end
-            this.tablePosNeg.app.showToolTip(...
-                this.contentPane, Html.WrapTable(tip, 11), 10, 5, 8);
-        end
-    end
-    
+        
     function prepare(this)
         this.contentPane=[];
         [this.posLbls, this.negLbls, this.sNames, this.sums, this.ids]...
             =SuhPredictions.Get(this.match);
     end
     
+    function sz=getSize(this, id)
+        tId=floor(id);
+        ti=find(this.sums(:,1)==tId,1);;
+        if ~isempty(ti)
+            idx=2+int32((id-tId) *10);
+            sz=this.sums(ti,idx);
+        else
+            warning('Classification label %d does not exist', tId);
+            sz=0;
+        end
+    end
+    
     function tablePosNeg=showTable(this, locate_fig, pu)
+        if isempty(this.posLbls) || isempty(this.negLbls)
+            error('Predictions could not be made');
+        end
         if ~isempty(this.tablePosNeg)
             if Gui.IsVisible(this.tablePosNeg.fig)
                 figure(this.tablePosNeg.fig);
@@ -145,17 +169,20 @@ methods
             end
         end
         this.contentPane=[];
+        this.jdStacked=[];
+        this.jLblStacked=[];
         m=this.match;
         sIdPerRow=[this.posLbls;this.negLbls]';
         if isempty(this.matchPosNeg)
             this.matchPosNeg=run_HiD_match(m.tData, m.tIdPerRow, ...
                 m.tData, sIdPerRow, 'mergeStrategy', -1,...
                 'trainingNames', m.tNames, 'matchStrategy', 2, ...
-                'log10', true, 'testNames', this.sNames, 'pu', pu);
+                'log10', true, 'testNames', this.sNames, ...
+                'pu', pu, 'probability_bins', m.probability_bins);
         end
         this.tablePosNeg=QfTable(this.matchPosNeg, m.tClrs, [], ...
             get(0, 'currentFig'), locate_fig, [], '', this);
-        listener=this.tablePosNeg.listen(this.match.columnNames, ...
+        listener=this.tablePosNeg.listen(m.columnNames, ...
             m.tData, m.tData, m.tIdPerRow, sIdPerRow, ...
             'predicted', 'true+|false+/- ');
         if isempty(this.columnName)
@@ -163,15 +190,271 @@ methods
         else
             listener.explorerName=this.columnName; %for window title
         end
+        listener.fncSelected=@(l)hearSelections(this, l);
         if nargin<3
             pu.close(true, false);
         end
         tablePosNeg=this.tablePosNeg;
     end
 end
+properties(SetAccess=private)
+    htmlStacked;
+    jdStacked;
+    jLblStacked;
+    lblStacked;
+    selectedData;
+    selectedName;
+    selectedIds;
+    highlights={};
+end
+
+properties
+    userData;
+end
+
+methods
+    function rememberHighlights(this, H, ttl, ttlStr)
+        this.highlights{end+1}...
+            =struct('H', H, 'ttl', ttl, 'ttlStr', {ttlStr});
+    end
+    
+    function removeHighlights(this)
+        N=length(this.highlights);
+        for i=1:N
+            try
+                delete(this.highlights{i}.H);
+                set(this.highlights{i}.ttl, 'String', ...
+                    this.highlights{i}.ttlStr);
+            catch ex
+                disp(ex);
+            end
+        end
+        this.highlights={};
+    end
+    
+    function hearSelections(this, listener)
+        this.selectedIds=listener.lastLbls;
+        [this.selectedName, nSelected]=...
+            StringArray.FirstAndN(listener.lastNames);
+        if nSelected>0
+            this.selectedData=listener.selected;
+        else
+            this.selectedData=[];
+        end
+        if ~isempty(this.fncSelected)
+            this.removeHighlights;
+            try
+                this.removeHighlights;
+                if this.tablePosNeg.cbFlashlight.isSelected
+                    feval(this.fncSelected, this);
+                end
+            catch ex
+                ex.getReport
+            end
+        end
+
+    end
+    
+    function html=computeStackedHtml(this, ids, columnName)
+        if isempty(ids)
+            html='';
+            return;
+        end
+        tId=floor(ids(1));
+        m=this.matchPosNeg;
+        if isequal(tId, this.lblStacked)
+            if ~isempty(this.jdStacked) && this.jdStacked.isVisible
+                html=this.htmlStacked;
+                setAlwaysOnTopTimer(this.jdStacked, ...
+                    .15, this.tablePosNeg.fig, false);
+                return;
+            end
+        end
+        
+        predictionSimilarity=zeros(1,4);
+        tableIds=this.tablePosNeg.data(:,this.tablePosNeg.idIdx);
+        similarities=this.tablePosNeg.data(:,this.tablePosNeg.similarityIdx);
+        subsetIdx=1;
+        subsets=cell(1,4);
+        densityBars=this.match.densityBars;
+        subsets{1}=fetch(tId, m.tIdPerRow);
+        for decimal=.2:.1:.3
+            subsetIdx=subsetIdx+1;
+            subsets{subsetIdx}=fetch(tId+decimal, m.sIdPerRow);
+        end
+        subsetIdx=subsetIdx+1;
+        subsets{4}=fetch(tId+.1, m.sIdPerRow);
+        this.lblStacked=tId;
+        ti=find(m.tIds==tId,1);
+        subsetName=m.tNames{ti};
+        subsetName=String.ToHtml(subsetName);
+        if String.Contains(subsetName, '^{')
+            subsetName=strrep(subsetName, '^{', '<sup>');
+            subsetName=strrep(subsetName, '}', '</sup>');
+        end        
+        app=BasicMap.Global;
+        sm1=app.smallStart;
+        sm2=app.smallEnd;
+        sb=java.lang.StringBuilder;
+        sb.append(['<table cellspacing="1" cellpadding="1">'...
+            '<thead><tr><th colspan="6">']);
+        sb.append(app.h2Start);
+        sb.append(subsetName);
+        sb.append(app.h2End);
+        if predictionSimilarity(2)>predictionSimilarity(3)
+            fpStart='<font color="blue"><u>'; fpEnd='</font></u>';
+            fnStart='<font color="#555555">'; fnEnd='</font>';
+            winner='false +';
+        else
+            fnStart='<font color="blue"><u>'; fnEnd='</font></u>';
+            fpStart='<font color="#555555">'; fpEnd='</font>';
+            winner='false -';
+        end
+        sb.append(sprintf(['<font color="#555555">Similarity to '...
+            '<i><font color="black">Predicted<font></i>:&nbsp;&nbsp;' ...
+            '%sfalse <font color="red">+</font> is %s%%%s, '...
+            '%sfalse <font color="red">-</font> is %s%%%s, '...
+            '<font color="#555555">true + is %s%%</font><hr>'], ...
+            fpStart, String.encodeRounded(100*predictionSimilarity(2),1), fpEnd, ...
+            fnStart, String.encodeRounded(100*predictionSimilarity(3),1), fnEnd, ...
+            String.encodeRounded(100*predictionSimilarity(4),1)));
+        sb.append('</th></tr><tr><th>');
+        sb.append(String.ToHtml(columnName));
+        kld='<font color="blue"><u>KLD</U></font>';
+        sb.append(['</th><th>Data distribution</th><th colspan="2">'...
+            sm1 'Kullback-Leibler<br>divergence (' kld ')' ...
+            sm2 '</th><th># of</th><th>Freq-</th></tr>'...
+            '<tr><th><font color=#555555">' ...
+            sm1 '(in order of best to<br>least ' kld ...
+            ' for <i><font color="black">Predicted</font></i>)' ...
+            sm2 '</font></th><th><font color="#555555"' ...
+            sm1 '(normalized)</font>' sm2 '</th><th>' sm1 'Score' ...
+            sm2 '</th><th>' sm1 'Rank' sm2 '</th><th>' sm1 ...
+            'events' sm2 '</th><th>uency</th></tr></thead>']);
+        subsetNames={'<html><i><b>Predicted</b></i></html>',...
+            '<html>&nbsp;&nbsp;false <font color="red">+</font></html>', ...
+            '<html>&nbsp;&nbsp;false <font color="red">-</font></html>', ...
+            '<html>&nbsp;&nbsp;true +</html>'};
+        totalEvents=size(m.tData, 1);
+        nColumns=size(m.tData,2);
+        sketch;
+        sb.append('</table>');
+        html=['<html>' char(sb.toString) '</html>'];
+        this.htmlStacked=html;
+        ttl=['DimensionStacker: ' subsetName ' (' winner ' wins)'];
+        if isempty(this.jdStacked) || ~this.jdStacked.isVisible
+            fp=Gui.FlowLeftPanel(1,0);
+            tip=SuhPredictions.Readings(fp, app, this.remindReadings);
+            this.remindReadings=false;
+            btn=Gui.NewBtn('Browse', @(h,e)browse(), ...
+                'See in default browser', 'world_16.png');
+            fp.add(btn);
+            if ~isempty(this.extraComponent)
+                fp.add(this.extraComponent);
+            end
+            [scroll, this.jLblStacked]=Gui.HtmlScrollLabel(html, 555, 500);
+            figure(this.tablePosNeg.fig);
+            was=app.currentJavaWindow;
+            app.currentJavaWindow='none';
+            this.jLblStacked.setToolTipText(...
+                ['<html>' app.h3Start 'DimensionStacker logic...' ...
+                app.h3End '<hr>' tip '<hr></html>']);
+            this.jdStacked=msg(scroll, 0,'east+', ttl, [],[], false, fp);
+            app.currentJavaWindow=was;
+            SuhWindow.Follow(this.jdStacked, this.tablePosNeg.fig, ...
+                'east+', true);
+            Gui.SetJavaVisible(this.jdStacked.setVisible(true));
+        else
+            this.jLblStacked.setText(html);
+            this.jdStacked.setTitle(ttl);
+            setAlwaysOnTopTimer(this.jdStacked, ...
+                .15, this.tablePosNeg.fig, false);
+        end
+
+        function rec=fetch(id, idPerRow)
+            l=MatBasics.LookForIds(idPerRow, id);
+            data=m.tData(l, :);
+            nEvents=size(data,1);
+            if nEvents>0
+                tableIdx=StringArray.IndexOf(tableIds, num2str(id));
+                predictionSimilarity(subsetIdx)=similarities{tableIdx};
+                rec.nEvents=nEvents;
+                rec.klds=Kld.ComputeNormalizedVectorized(data, false, 256);
+                if isempty(densityBars)
+                    densityBars=DensityBars.New(data);
+                else
+                    densityBars.go(data);
+                end
+                rec.bars=densityBars.bars;
+                [~,rec.mostToLeastKLD]=sort(rec.klds, 'descend');
+            else
+                rec=[];
+            end
+        end
+        
+        function browse
+            Html.BrowseString(this.htmlStacked);
+        end
+        
+        function sketch
+            mostToLeastKLD=subsets{1}.mostToLeastKLD;
+            for rank=1:nColumns
+                colIdx=mostToLeastKLD(rank);
+                name=m.columnNames{colIdx};
+                sb.append('<tr><td colspan="6" align="center"><hr><b><i>');
+                sb.append(String.ToHtml(name));
+                sb.append('</i></b></td></tr>');
+                for subsetIdx=1:4
+                    if isempty(subsets{subsetIdx})
+                        continue;
+                    end
+                    sb.append('<tr><td>');
+                    nEvents=subsets{subsetIdx}.nEvents;
+                    sb.append(subsetNames{subsetIdx});
+                    sb.append('</td><td bgcolor="white">');
+                    sb.append(subsets{subsetIdx}.bars{colIdx});
+                    sb.append('</td><td align="right">');
+                    sb.append(strrep(String.encodeRounded(subsets{subsetIdx}.klds(colIdx), 2), '<', '&lt;'));
+                    sb.append('</td><td align="right">');
+                    thisRank=int32( find(subsets{subsetIdx}.mostToLeastKLD==colIdx, 1));
+                    dif=abs(thisRank-rank);
+                    if dif>0
+                        sb.append('<b>');
+                        if dif>2
+                            sb.append('<font color="red">');
+                        end
+                    end
+                    sb.append(thisRank);
+                    if dif>2
+                        sb.append('</font>');
+                    end
+                    if dif>0
+                        sb.append('</b>');
+                    end
+                    sb.append('</td><td align="right">');
+                    sb.append(String.encodeK(nEvents));
+                    sb.append('</td><td align="right">');
+                    sb.append(strrep(String.encodePercent(...
+                        nEvents, totalEvents, 1), '<', '&lt;'));
+                    sb.append('</td></tr>');
+                end
+            end
+        end
+    end    
+end
 
 methods(Static)
     function [pos, neg, names, sums, ids]=Get(qf)
+        if ~isequal(qf.tIds, floor(qf.tIds))
+            msg('Classification labels must be whole numbers');
+            warning('Classification labels must be whole numbers');
+            pos=[];
+            neg=[];
+            names=[];
+            sums=[];
+            ids=[];
+            return;
+        end
         if isempty(qf.falsePosEvents)
             qf.getFalsePosNegRecords
         end
@@ -203,9 +486,9 @@ methods(Static)
             done=done+1;
             sums(done,1)=tId;
             sums(done,2)=qf.tSizes(ti);
-            addIdxs([tName ' true+'], 1, truePosIdxs);
-            addIdxs([tName ' false+'], 2, falsePosIdxs);
-            addIdxs([tName ' false-'], 3, falseNegIdxs);
+            addIdxs([tName ' true +'], 1, truePosIdxs);
+            addIdxs([tName ' false +'], 2, falsePosIdxs);
+            addIdxs([tName ' false -'], 3, falseNegIdxs);
             if SuhPredictions.DEBUG
                 assert(isequal(qf.idxsFalseNeg{ti}, falseNegIdxs));
                 assert(isequal(qf.idxsFalsePos{ti}, falsePosIdxs));
@@ -235,6 +518,8 @@ methods(Static)
         if isstruct(qf)
             if isfield(qf, 'predictions')
                 this=qf.predictions;
+                qf.areEqual=true;
+                qf.sData=[];
                 this.setMatch(qf);
             end
         elseif isa(qf, 'QfHiDM')
@@ -252,7 +537,130 @@ methods(Static)
                     locate_fig=[];
                 end
             end
-            table=this.showTable(locate_fig, pu);
+            if ~isstruct(this)
+                table=this.showTable(locate_fig, pu);
+            end
+        end
+    end
+    
+    %next 4 functions only works if AutoGate is present
+    function gid=GetPredictionGid(gtp, studGid, parentId)
+        gid=SuhPredictions.GetPrediction(gtp,...
+            SuhPredictions.GetPredictionParent(gtp, studGid),...
+            parentId); 
+    end
+    
+    function child=GetPredictionParent(gtp, studGid)
+        sid=gtp.getParentFileId(studGid);
+        it=gtp.getChildNodeList(sid).iterator;
+        child='';
+        while it.hasNext
+            child=char(it.next);
+            gid=gtp.get([child '.' SuhPredictions.PROP_PREDICTIONS]);
+            if isequal(gid, studGid)
+                return;
+            end
+        end
+        child=[];
+    end
+    
+    function child=GetPrediction(gtp, predictionParent, predictingId)
+        child=[];
+        if isempty(predictionParent)
+            return;
+        end
+        predictedId=floor(predictingId);
+        typeOfPrediction=num2str(int32((predictingId-predictedId)*10));
+        predictedId=num2str(predictedId);
+        it=gtp.getChildNodeList(predictionParent).iterator;
+        while it.hasNext
+            child=char(it.next);
+            ok=SuhPredictions.IsPrediction(gtp, child, ...
+                predictedId, typeOfPrediction);
+            if ok
+                return;
+            end
+        end
+        child=[];
+    end
+    
+    function ok=IsPrediction(gtp, gid, predictedId, typeOfPrediction)
+        ok=false;
+        predicted=gtp.get([gid '.' SuhPredictions.PROP_PREDICTED]);
+        if isequal(predicted, predictedId)
+            typeOf=gtp.get([gid '.' SuhPredictions.PROP_PREDICTION]);
+            ok=isequal(typeOfPrediction, typeOf);
+        end
+    end
+    
+    function [idx, predictedId, str]=Type(predictingId)
+        predictedId=floor(predictingId);
+        idx=int32((predictingId-predictedId)*10);
+        if nargout>2
+            switch idx
+                case 1
+                    str='true+';
+                case 2
+                    str='false+';
+                case 3
+                    str='false-';
+                otherwise
+                    str='predicted';
+            end
+        end
+    end
+    
+    
+    function [tip, pnl]=Readings(fp, app, firstTime)
+        if app.highDef
+            factor=1.2;
+        else
+            factor=.97;
+        end
+        tip=[QfHiDM.Tip '<hr>' Kld.Tip];
+        sm1=['<b>' app.smallStart];
+        sm2=['</b>' app.smallEnd];
+        dflt=2;
+        lbl='';
+        pnl=Gui.FlowLeftPanel(0,0);
+        lbl=javax.swing.JLabel(['<html>' sm1 ...
+            lbl sm2 '</html>']);
+        pnl.add(lbl);
+        combo=Gui.Combo(Html.WrapSmallBoldCell({'Select 1...<hr>',...
+            [Html.ImgXy('help2.png', [], factor) ...
+            '&nbsp;&nbsp;KLD' ], ...
+            [Html.ImgXy('match16.png', [], factor) ...
+            '&nbsp;&nbsp;QFMatch'],...
+            [Html.ImgXy('emd.png', [], factor) ...
+            '&nbsp;&nbsp;EMD'], 'Quadratic<br>form'}), dflt,...
+            '',[], @(h,e)lookup(h), ['<html><font color="blue"><b>'...
+            'Read background '...
+            'materials...</b></font><hr>' tip '<hr></html>']);
+        pnl.add(combo);
+        Gui.SetTransparent(lbl);
+        Gui.SetTransparent(combo);
+        Gui.SetTransparent(pnl);
+        fp.add(pnl);
+        if firstTime
+            MatBasics.RunLater(@(h,e)shake(), .5);
+        end
+        function shake
+            edu.stanford.facs.swing.Basics.Shake(combo, 3);
+            app.showToolTip(combo,[],-25,25);
+        end
+        function lookup(h)
+            idx=h.getSelectedIndex;
+            switch idx
+                case 1
+                    url='https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence';
+                case 2
+                    url='https://www.nature.com/articles/s41598-018-21444-4';
+                case 3
+                    url='https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0151859';
+                case 4
+                    url='http://www.cyto.purdue.edu/sites/default/files/PDFs/Bernas_quadratic_2008.pdf';
+            end
+            web(url, '-browser');
         end
     end
 end

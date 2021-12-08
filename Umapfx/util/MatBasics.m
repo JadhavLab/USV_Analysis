@@ -9,13 +9,17 @@
 
 classdef MatBasics
     methods(Static)
-        function v=VersionAbbreviation
+        function [v, v2]=VersionAbbreviation
             v=version;
             idx=String.IndexOf(v,'R20');
             if ~isdeployed
                 v=[v(idx+3:idx+5) '+'];
             else
                 v=v(idx+3:idx+5);
+            end
+            if nargout>1
+                v2=version;
+                v2=v2(idx+1:idx+5);
             end
         end
         
@@ -2640,13 +2644,8 @@ classdef MatBasics
             %expecting 0 to 1 with tolerance +/- .1 (logicle like)
             %first divide into 20 bins
             N_BINS=40;
-            if N_BINS>20
-                tdStart=app.smallStart;
-                tdEnd=app.smallEnd;
-            else
-                tdStart='';
-                tdEnd='';
-            end
+            tdStart=app.smallStart;
+            tdEnd=app.smallEnd;
             denominator=(1/N_BINS);
             bins=ceil(data0to1/denominator);
             mx=max(bins);
@@ -2674,11 +2673,6 @@ classdef MatBasics
                 idxs=u+idx1;
                 grid(idxs,c)=h/R;
             end
-            if app.highDef
-                sym='>&#10074;</font>';
-            else
-                sym='>&#10074;</font>';
-            end
             jet255=app.get(Html.PROP_JET);
             if isempty(jet255) || ~iscell(jet255)
                 j=Html.JET;
@@ -2689,13 +2683,12 @@ classdef MatBasics
                 end
                 app.set(Html.PROP_JET, jet255);
             end
-            x=tic;
-            fprintf('tic %d\n', C*B);
             if useJava
                 strBars=cell(...
                     edu.stanford.facs.swing.Basics.StrDensity1D(...
                     grid, jet255, tdStart, tdEnd));
             else
+                sym='>&#10074;</font>';
                 jr=length(jet255);
                 strBars=cell(1,C);
                 
@@ -2724,7 +2717,6 @@ classdef MatBasics
                     strBars{c}=char(sb.toString);
                 end
             end
-            toc(x)
         end
         
         

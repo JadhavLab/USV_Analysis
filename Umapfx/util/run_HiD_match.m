@@ -1,4 +1,4 @@
-function [result, done]=run_HiD_match(trainingSet, trainingIds, testSet, ...
+function [qf, done]=run_HiD_match(trainingSet, trainingIds, testSet, ...
     testIds, varargin)
 %%RUN_HiD_MATCH runs the QF match algorithm 
 %   on the subsets found within a training test set of data.
@@ -15,7 +15,7 @@ function [result, done]=run_HiD_match(trainingSet, trainingIds, testSet, ...
 %
 %   RETURN VALUES
 %   Invoking run_umap produces 2 return values:
-%   1)result; an instance of the QFHiDM class describing match results
+%   1)qf; an instance of the QFHiDM class describing match results
 %       in the instance variable result.matches, result.matrixHtml
 %       is a web page description of the result
 %
@@ -86,24 +86,39 @@ p=parseArguments();
 parse(p,varargin{:});
 [args, hadPu]=checkArgs(p.Results);
 bins=QfHiDM.BinsCode(args.probabilityBinSize);
-result=QfHiDM(trainingSet, args.trainingSetComp, trainingIds, ...
+qf=QfHiDM(trainingSet, args.trainingSetComp, trainingIds, ...
     testSet, args.testSetComp, testIds, bins, args.binStrategy);
-result.tNames=args.trainingNames;
-result.sNames=args.testNames;
-result.matchStrategy=args.matchStrategy;
-result.mergeStrategy=args.mergeStrategy;
-result.maxDeviantParameters=args.maxDeviantParameters;
-if result.matchStrategy==1 && args.mergeLimit==0
-    tCnt=length(result.tIds);
-    sCnt=length(result.sIds);
+qf.tNames=args.trainingNames;
+qf.sNames=args.testNames;
+qf.matchStrategy=args.matchStrategy;
+qf.mergeStrategy=args.mergeStrategy;
+qf.maxDeviantParameters=args.maxDeviantParameters;
+if qf.matchStrategy==1 && args.mergeLimit==0
+    tCnt=length(qf.tIds);
+    sCnt=length(qf.sIds);
     [percentDiff, mergeCandidates]=MatBasics.Bigger(sCnt, tCnt);
     if percentDiff>2 || mergeCandidates>13
         if ~args.ask_to_accelerate || askYesOrNo('Accelerate merge phase?')
-            result.matchStrategy=3; %emd + f-measure optimizing
+            qf.matchStrategy=3; %emd + f-measure optimizing
         end
     end
 end
-done=result.compute(args.pu, true, 4, 1, args.html);
+if isempty(args.probability_bins)
+    done=qf.compute(args.pu, true, 4, 1, args.html);
+else
+    try %not sure if new acceleration
+        qf.compress(args.probability_bins);
+        done=qf.compute(args.pu, true, 4, 1, args.html);
+        qf.decompress();
+    catch ex % not working yet? ... use older slow programming
+        ex.getReport
+        try
+            qf.decompress();
+            done=qf.compute(args.pu, true, 4, 1, args.html);
+        catch
+        end
+    end
+end
 if ~hadPu
     args.pu.close;
 end
@@ -157,6 +172,8 @@ BasicMap.Global.setNumeric(QfHiDM.PROP_MERGE_LIMIT, num2str(ml));
         addParameter(p,'testNames', {}, @(x)StringArray.IsOk(x));
         addParameter(p,'ask_to_accelerate', true, @islogical);
         addParameter(p,'pu',[], @(x)isempty(x) || isequal('none', x) || isa(x,'PopUp'));
+        addParameter(p,'probability_bins',[], @(x)isempty(x) ...
+            || isa(x,'SuhProbabilityBins'));
         QfHiDM.DefineArgs(p);
     end
 

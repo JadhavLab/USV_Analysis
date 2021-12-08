@@ -790,7 +790,7 @@ public class Basics {
 				}
 			}
 			for (int b=0;b<B;b++) {
-				if (grid[b][c]<.0001) {
+				if (grid[b][c]<.000001) {
 					sb.append("<font color='#FFFFFF'");
 				}else {
 					sb.append("<font ");

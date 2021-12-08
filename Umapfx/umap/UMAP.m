@@ -153,7 +153,7 @@ classdef UMAP < handle
 %   License: BSD 3 clause
         
     properties(Constant)
-        VERSION='3.0';
+        VERSION='3.01';
         TITLE=['UMAP & UST (v' num2str(UMAP.VERSION) ')' ];
         CREDITS='Herzenberg Lab, Stanford University';
         INVENTORS='Leland McInnes, John Healy & James Melville';
@@ -452,8 +452,8 @@ classdef UMAP < handle
             this.progress_callback=[];
             this.graph=[];
             if ~isempty(this.embedding) && (nargin<2 || isempty(ax))
-                mx=max(this.embedding);
-                mn=min(this.embedding);
+                mx=max(this.embedding, [], 1);
+                mn=min(this.embedding, [], 1);
                 this.xLimit=[mn(1) mx(1)];
                 this.yLimit=[mn(2) mx(2)];
                 if size(this.embedding, 2)>2

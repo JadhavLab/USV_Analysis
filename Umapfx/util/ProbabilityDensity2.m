@@ -522,7 +522,7 @@ classdef ProbabilityDensity2 < handle
                         labelHs(i)=plot(ax, ...
                             data(l,1), data(l,2), marker, 'MarkerSize', ms,...
                             'MarkerEdgeColor', clr, 'LineStyle', 'none');
-                        name=char(lblMap.get(java.lang.String(key)));
+                        name=strtrim(char(lblMap.get(java.lang.String(key))));
                         if addTrainingHtml
                             name=[name trStart lblMap.get(keyTraining) trEnd];
                         end

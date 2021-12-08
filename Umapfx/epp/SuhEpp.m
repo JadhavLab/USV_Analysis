@@ -11,8 +11,8 @@ classdef SuhEpp < SuhAbstractClass
     properties(Constant)
         TESTING=false;
         FONT_SIZE=24;
-        VERSION=2021.4;
-        TITLE=['EPP (v' num2str(SuhEpp.VERSION) ')' ];
+        VERSION='2021.4';
+        TITLE=['EPP (v' SuhEpp.VERSION ')' ];
         CREDITS='Herzenberg Lab, Stanford University';
         INVENTORS='Wayne Moore, David Parks, Connor Meehan & Stephen Meehan';
         PROGRAMMERS='Stephen Meehan & Wayne Moore';
@@ -57,6 +57,7 @@ classdef SuhEpp < SuhAbstractClass
         leafFigs;
         suhTree;
         umapArgOut={};
+        fncSyncKld;
     end
     
     properties
@@ -456,9 +457,11 @@ classdef SuhEpp < SuhAbstractClass
                     %imshow(this.createPng(nextKey, true), 'parent', ax);
                     
                     this.splitter.plotSelected(ax, subset,...
-                        X, Y, splitA, isequal(nextKey(end), '2'), ttl)
+                        X, Y, splitA, isequal(nextKey(end), '2'), ttl, ...
+                        this.getPredictions)
                 else
-                    this.splitter.plot(ax, subset, X, Y, splitA, ttl);
+                    this.splitter.plot(ax, subset, X, Y, splitA, ttl, ...
+                        this.getPredictions);
                 end
                 if num+1<numSplits
                     ax=subplot(R,C,num+2, 'Parent', fig);
@@ -496,21 +499,27 @@ classdef SuhEpp < SuhAbstractClass
                    [], {this.figHierarchyExplorer, 'east++', true}, false);
             end
             if isa(axOrKld, 'Kld')
+                pred=this.getPredictions;
                 if isempty(parentNode)
                     axOrKld.initPlots(1, 2);
                     ax=axOrKld.getAxes;
-                    this.splitter.plot(ax, node.subset, node.X, node.Y, ...
-                        node.splitA, node.name);
+                    [~,highlights, highlightName]=...
+                        this.splitter.plot(ax, node.subset, node.X, node.Y, ...
+                        node.splitA, node.name, pred);
                 else
                     axOrKld.initPlots(1, 3);
                     ax=axOrKld.getAxes;
                     this.splitter.plotSelected(ax, parentNode.subset,...
                         parentNode.X, parentNode.Y, parentNode.splitA, ...
                         isequal(key(end), '2'), ...
-                        SuhEpp.NodeTitle(parentNode))
+                        SuhEpp.NodeTitle(parentNode), pred);
                     ax=axOrKld.getAxes(2);
-                    this.splitter.plot(ax, node.subset, node.X, node.Y, ...
-                        node.splitA, SuhEpp.NodeTitle(node));
+                    [~,highlights, highlightName]=...
+                        this.splitter.plot(ax, node.subset, node.X,  ...
+                        node.Y, node.splitA, SuhEpp.NodeTitle(node), pred);
+                end
+                if ~isempty(pred)
+                    axOrKld.setHighlights(highlights, highlightName);
                 end
                 if ~createdKld
                     axOrKld.refresh(node.subset.data, node.name);
@@ -525,6 +534,24 @@ classdef SuhEpp < SuhAbstractClass
                 end
                 this.splitter.plot(ax, node.subset, node.X, node.Y, ...
                     node.splitA, node.name);
+            end
+        end
+        
+        function setPredictionListener(this, predictions)
+            if isa(predictions, 'QfTable')
+                predictions.predictions.setSelectionListener(...
+                    @(P)hearPredictions(this, P));
+            elseif isstruct(predictions)
+                warning('Can''t set predictions');
+            else
+                predictions.setSelectionListener(...
+                    @(P)hearPredictions(this, P));
+            end
+        end
+        
+        function hearPredictions(this, predictions)
+            if ~isempty(predictions.selectedIds) % caller clears my last plots
+                feval(this.fncSyncKld);
             end
         end
         
@@ -742,6 +769,10 @@ classdef SuhEpp < SuhAbstractClass
             end
             if ~exist(imgFile, 'file')
                 this.plot(key, doParent, imgFile);
+            elseif this.wantsPredictionSelections
+                [fldr, fn, ext]=fileparts(imgFile);
+                imgFile=fullfile(fileparts(fldr), 'img2', [fn ext]);
+                this.plot(key, doParent, imgFile);
             end
         end
         
@@ -767,10 +798,13 @@ classdef SuhEpp < SuhAbstractClass
                 parentNode=this.find(key(1:end-1));
                 this.splitter.plotSelected(ax, parentNode.subset,...
                     parentNode.X, parentNode.Y, parentNode.splitA, ...
-                    isequal(key(end), '2'), SuhEpp.NodeTitle(parentNode));
+                    isequal(key(end), '2'), ...
+                    SuhEpp.NodeTitle(parentNode), ...
+                    this.getPredictions);
             else
                 this.splitter.plot(ax, node.subset, node.X, node.Y, ...
-                    node.splitA, SuhEpp.NodeTitle(node));
+                    node.splitA, SuhEpp.NodeTitle(node), ...
+                    this.getPredictions);
             end
             if ~isempty(pngFile)
                 File.mkDir(fileparts(pngFile));
@@ -986,7 +1020,8 @@ classdef SuhEpp < SuhAbstractClass
             for i=1:nChilds
                 uit.expand(startNode.getChildAt(i-1));
             end
-                   
+            this.fncSyncKld=@syncKld;
+            
             function ok=syncKld
                 if ~isempty(this.selectedKey)
                     ok=true;
@@ -1177,6 +1212,7 @@ classdef SuhEpp < SuhAbstractClass
                 Gui.FollowWindow(fig, args.locate_fig);
                 drawnow;
             end
+            Gui.FitFigToScreen(fig);
             set(fig, 'visible', 'on');
             obj.fig=fig;
             obj.tb=tb;
@@ -1359,13 +1395,13 @@ classdef SuhEpp < SuhAbstractClass
             else
                 clusterOutput='none';
             end
-            uArgs={'save_output', this.args.save_output,...
-                'output_folder', this.args.output_folder,...
-                'output_suffix', ['_epp' num2str(option)],...
-                'parameter_names', this.dataSet.columnNames,...
-                'qf_tree', this.args.qf_tree,...
-                'cluster_output', clusterOutput,...
-                'locate_fig', locate, this.umapVarArgIn{:}};
+            uArgs=[{'save_output'}, {this.args.save_output},...
+                {'output_folder'}, {this.args.output_folder},...
+                {'output_suffix'}, {['_epp' num2str(option)]},...
+                {'parameter_names'}, {this.dataSet.columnNames},...
+                {'qf_tree'}, {this.args.qf_tree},...
+                {'cluster_output'}, {clusterOutput},...
+                {'locate_fig'}, {locate}, this.umapVarArgIn(:)'];
             uArgs{end+1}='verbose';
             if this.args.explore_hierarchy
                 uArgs{end+1}='graphic';
@@ -1472,7 +1508,8 @@ classdef SuhEpp < SuhAbstractClass
                                 if nargin>3 && seePredictions
                                     if isempty(this.dataSet.predictions) ...
                                             || ~Gui.IsVisible(this.dataSet.predictions.fig)
-                                        this.dataSet.seePredictions;
+                                        this.setPredictionListener(...
+                                            this.dataSet.seePredictions());
                                     end
                                 end
                                 figure(matchFig);
@@ -1565,7 +1602,7 @@ classdef SuhEpp < SuhAbstractClass
                         uimenu(m, 'Label', 'Similarity/overlap with prior classification', ...
                             'Separator', 'on', ...
                             'Callback', @(h,e)characterize(this, true));
-                        uimenu(m, 'Label', 'Prediction accuracy with prior classification', ...
+                        uimenu(m, 'Label', 'Predictions of prior classification', ...
                             'Callback', @(h,e)seePredictions());
                         uimenu(m, 'Label', 'QfTree with labeled subsets', ...
                             'Separator', 'off', ...
@@ -1654,8 +1691,18 @@ classdef SuhEpp < SuhAbstractClass
                 SuhEpp.MsgSelect;
                 return;
             end
+            [~,cancelled]=this.hasPredictionSelections(true);
+            if cancelled
+                return;
+            end
+            
             fileName=this.getHtmlFile(key, false);
-            if ~exist(fileName, 'file') || SuhEpp.TESTING
+            if this.wantsPredictionSelections
+                [fldr, fn, ext]=fileparts(fileName);
+                fileName=fullfile(fldr, [fn '_P' ext]);
+            end
+            if this.wantsPredictionSelections ...
+                        || ~exist(fileName, 'file') || SuhEpp.TESTING
                 pu_=PopUp('Preparing sub-tree html', 'south',...
                     'Browsing EPP', true, true);
                 len=this.countLeaves(key);
@@ -1707,7 +1754,39 @@ classdef SuhEpp < SuhAbstractClass
             end
         end
     end
+    
+    properties(SetAccess=private)
+        wantsPredictionSelections;
+    end
+    
     methods
+        
+        function pred=getPredictions(this)
+            try
+                pred=this.dataSet.matchTable.predictionsOfThese;
+                if isempty(pred.fncSelected)
+                    this.setPredictionListener(pred);
+                end
+            catch
+                % no labels or no match table or something 
+                pred=[];
+            end
+        end
+        
+        function [ok, cancelled]=hasPredictionSelections(this, ask)
+            cancelled=false;
+            this.wantsPredictionSelections=false;
+            pred=this.getPredictions;
+            ok=~isempty(pred) && ~isempty(pred.selectedData);
+            if ok && nargin>1 && ask
+                [ok, cancelled]=askYesOrNo(sprintf(Html.WrapHr([...
+                    'Reflect the <b>%s</b> selections for <br>"<b>%s</b>"?'...
+                    ]),  String.encodeK(sum(pred.selectedData)),...
+                    pred.selectedName));
+                this.wantsPredictionSelections=ok;
+            end
+        end
+        
         function browseParents(this, keys, where)
             if isempty(keys) || isempty(keys{1})
                 SuhEpp.MsgSelect;
@@ -1715,12 +1794,21 @@ classdef SuhEpp < SuhAbstractClass
             end
             pu_=[];
             nKeys=length(keys);
+            [~,cancelled]=this.hasPredictionSelections(true);
+            if cancelled
+                return;
+            end
             fileNames=cell(1, nKeys);
             for i=1:nKeys
                 key=keys{i};
                 fileName=this.getHtmlFile(key);
+                if this.wantsPredictionSelections
+                    [fldr, fn, ext]=fileparts(fileName);
+                    fileName=fullfile(fldr, [fn '_P' ext]);
+                end                    
                 fileNames{i}=fileName;
-                if ~exist(fileName, 'file') || SuhEpp.TESTING
+                if this.wantsPredictionSelections ...
+                        || ~exist(fileName, 'file') || SuhEpp.TESTING
                     len=length(key);
                     if isempty(pu_)
                         if nargin<3

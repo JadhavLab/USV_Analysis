@@ -314,11 +314,7 @@ public class Numeric {
 				 }
 				 final Object sNum;
 				 if (dec>=0){
-					 if (dec>=df.length){
-						 sNum=df[df.length-1].format(num);
-					 } else {
-						 sNum=df[dec].format(num);
-					 }
+					 sNum=Numeric.ConvertDecimalHtml(num, dec);
 				 }else if (dec<-6){
 					 sNum=Numeric.encodeMb(num);
 				 }else if (dec<-3){
@@ -339,5 +335,55 @@ public class Numeric {
 			 }
 		 }
 		 return out;
+	 }
+	 
+	 public static String ConvertDecimal(final double num,  int dec){
+		 
+		 String sNum;
+		 if (dec>=df.length){
+			 dec=df.length-1;
+		 } 
+		 sNum=df[dec].format(num);
+		 if ("0".equals(((String)sNum).trim())){
+			 if (num != 0) {
+				 if (dec==0){
+					 return "<0";
+				 }
+				 Double n=1/java.lang.Math.pow(10.0, (double)dec);
+				 return "<"+n.toString();
+			 }
+		 }
+		 return sNum;
+	 }
+
+	 public static String ConvertDecimalHtml(final double num,  int dec){
+		 
+		 String sNum;
+		 if (dec>=df.length){
+			 dec=df.length-1;
+		 } 
+		 sNum=df[dec].format(num);
+		 if ("0".equals(((String)sNum).trim())){
+			 if (num != 0) {
+				 if (dec==0){
+					 return "&lt;0";
+				 }
+				 Double n=1/java.lang.Math.pow(10.0, (double)dec);
+				 return "&lt;"+n.toString();
+			 }
+		 }
+		 return sNum;
+	 }
+	
+	 public static void main(String[]args){
+		 String result;
+		 result=Numeric.ConvertDecimal(2.6, 0);
+		 result=Numeric.ConvertDecimal(.6, 0);
+		 result=Numeric.ConvertDecimal(3.006, 2);
+		 result=Numeric.ConvertDecimal(0, 2);
+		 result=Numeric.ConvertDecimal(.006, 2);
+		 result=Numeric.ConvertDecimal(.0012, 2);
+		 result=Numeric.ConvertDecimal(.4, 0);
+		 result=Numeric.ConvertDecimal(.049, 1);
 	 }
 }

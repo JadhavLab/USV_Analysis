@@ -7,6 +7,7 @@
 %
 classdef UmapUtil < handle
     properties(Constant)
+        MINIMUM_FAST_APPROXIMATION=5*1024*10;
         PATH='run_umap/examples';
         DFLT_TRANSFORM_Q_SZ=1.35;
         CATEGORICAL='categorical';
@@ -572,6 +573,7 @@ classdef UmapUtil < handle
             addParameter(p, 'output_suffix', '', @ischar);
             addParameter(p,'fast_approximation', false, @islogical);
             addParameter(p,'roi_percent_closest', false, @islogical);
+            addParameter(p,'hide_reduction_time', true, @islogical);
             
             function validateRoiTable(x)
                 if isnumeric(x) && x>=0 && x<=3
@@ -704,17 +706,20 @@ classdef UmapUtil < handle
         
         function [qft, tNames]=Match(args, unreducedData, tLbls, tLblMap,...
                 sLbls, clusterDetail, matchStrategy, visible, pu, ...
-                predictions, file)
-            if nargin<11
-                file=[];
-                if nargin<10
-                    predictions=false;
-                    if nargin<9
-                        pu=[];
-                        if nargin<8
-                            visible=true;
-                            if nargin<7
-                                matchStrategy=1;
+                predictions, file, probability_bins)
+            if nargin<12
+                probability_bins=[];
+                if nargin<11
+                    file=[];
+                    if nargin<10
+                        predictions=false;
+                        if nargin<9
+                            pu=[];
+                            if nargin<8
+                                visible=true;
+                                if nargin<7
+                                    matchStrategy=1;
+                                end
                             end
                         end
                     end
@@ -733,7 +738,8 @@ classdef UmapUtil < handle
                 qf=run_HiD_match(unreducedData, tLbls,...
                     unreducedData, sLbls, 'trainingNames', tNames, ...
                     'matchStrategy', matchStrategy, 'log10', true, ...
-                    'testNames', sNames, 'pu', pu);
+                    'testNames', sNames, 'pu', pu, ...
+                    'probability_bins', probability_bins);
             else
                 qf=QfTable.Load(file, false, unreducedData, tLbls);
             end
@@ -774,7 +780,7 @@ classdef UmapUtil < handle
             qft.context=context;
             roiTable=[];
             
-            function select(qf, isTeacher, qfIdx)
+            function select(qf, isTeacher, qfIdx) %#ok<DEFNU>
                 [name, lbl, tLbl, sLbl]=QfHiDM.GetIds2(qf, isTeacher, qfIdx);
                 fprintf('teacher=%d, tId=%d, name="%s"\n',...
                     isTeacher, tLbl, name);
@@ -894,7 +900,7 @@ classdef UmapUtil < handle
             for i=1:N_
                 id=ids(i);      
                 key=num2str(id);
-                names{i}=lblMap.get(java.lang.String(key));
+                names{i}=strtrim(char(lblMap.get(java.lang.String(key))));
                 if isempty(names{i})
                     names{i}=key;
                 end
@@ -1080,6 +1086,10 @@ classdef UmapUtil < handle
                 pPth=fileparts(pth);
                 utilPath=fullfile(pPth, 'util');
                 addpath(utilPath);
+                MatBasics.WarningsOff
+                if ~initJava
+                    error('Can not find suh.jar');
+                end
                 eppPath=fullfile(pPth, 'epp');
                 if exist(eppPath, 'dir')
                     % full suh pipeline installed (maybe AutoGate too)
@@ -1088,8 +1098,7 @@ classdef UmapUtil < handle
                 else
                     % only UMAP installed
                     FileBasics.AddNonConflictingPaths({pth, utilPath});
-                end
-                initJava;
+                end 
             end
             
             if nargin>0

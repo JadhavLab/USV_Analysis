@@ -4,6 +4,9 @@ function [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack,encoderN
 
 % data are
 allcalls=imageStack;
+numEpochs = 200;
+miniBatchSize = 512;
+nLatentDim=12;
 
 
 % if we dont already have our net, build one from a random bit of these
@@ -18,14 +21,14 @@ if ~exist('verbose','var'), verbose=0; end
 images = dlarray(allcalls, 'SSCB');
     % Divide the images into training and validation
     [trainInd,valInd] = dividerand(size(images,4), .9, .1);
-    XTrain  = images(:,:,:,trainInd);
-    XTest   = images(:,:,:,valInd);
+    XTrain  = images(:,:,:,trainInd); % 90% of data
+    XTest   = images(:,:,:,valInd); % 10% of data
 
 if isempty(encoderNet) ||isempty(decoderNet)
     % make sure calls are xpix by y pix by 1 by ncalls (third dim is color)
-    [encoderNet, decoderNet] = VAE_model();    
+    [encoderNet, decoderNet] = VAE_model(nLatentDim);    
     % Train the network
-    [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest);
+    [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs);
 end
 
 
@@ -36,20 +39,33 @@ end
 
 
 % now extract the low dimensional data
-[~, zMean] = sampling(encoderNet, images);
-zMean = stripdims(zMean)';
-zMean = gather(extractdata(zMean));
-data = double(zMean);
+% [~, zMean] = sampling(encoderNet, images);
+% zMean = stripdims(zMean)';
+% zMean = gather(extractdata(zMean));
+% data = double(zMean);
+
+batchinds=[0 miniBatchSize:miniBatchSize:size(images,4)];
+batches=[1+batchinds' [batchinds(2:end) size(images,4)]'];
+data=[];
+for bt=1:size(batches,1)
+    [~,zMean]=sampling(encoderNet, images(:,:,:,batches(bt,1):batches(bt,2)));
+    zMean = stripdims(zMean)';
+    zMean = gather(extractdata(zMean));
+    data = [data; double(zMean)];
+end
 
 
 
 end
 
 
-function [encoderNet, decoderNet] = VAE_model()
+function [encoderNet, decoderNet] = VAE_model(nLatentDim)
 
-
-latentDim = 32;
+if ~exist('nLatentDim','var')
+    latentDim = 32;
+else
+    latentDim=nLatentDim;
+end
 imageSize = [128, 128, 1];
 
 encoderLG = layerGraph([
@@ -109,15 +125,12 @@ decoderNet = dlnetwork(decoderLG);
 end
 
 
-function [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest)
+function [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs)
 
 numTrainImages = size(XTrain, 4);
 
 executionEnvironment = "auto";
 
-
-numEpochs = 200;
-miniBatchSize = 128;
 lr = 1e-3;
 numIterations = floor(numTrainImages/miniBatchSize);
 iteration = 0;
@@ -141,6 +154,8 @@ h = animatedline(axes1, 'Color', [.1, .9, .7], 'LineWidth', 1.5, 'Marker', '.', 
 set(axes1, 'yscale', 'log')
 for epoch = 1:numEpochs
     tic;
+    % this runs 200 (numIterations) iterations of network updating to
+    % generate a new set of y (x=images, y=sparse vector)
     for i = 1:numIterations
         iteration = iteration + 1;
         idx = (i-1)*miniBatchSize+1:i*miniBatchSize;
@@ -163,15 +178,28 @@ for epoch = 1:numEpochs
     end
     elapsedTime = toc;
     
+    % if there is no figure, return
     if ~isvalid(h)
         return
     end
-    % get your z values (your latent dims)
+
+    
+    
+    % forward the whole set
     [z, zMean, zLogvar] = sampling(encoderNet, XTest);
-    forward(encoderNet, XTest); % pass forward again?
-    % now predict your test images from the z
-    xPred = sigmoid(forward(decoderNet, z)); % predict your images
-    % get the average differencde between the two
+    forward(encoderNet, XTest);
+    % backward, generate the predictions
+    % and this is where we run into problems
+    % lets grab this in sections
+    batchinds=[0 miniBatchSize:miniBatchSize:size(z,4)];
+    batches=[1+batchinds' [batchinds(2:end) size(z,4)]'];
+    xPred=[];
+    for bt=1:size(batches,1)
+        xPredRaw=forward(decoderNet, z(:,:,:,batches(bt,1):batches(bt,2)));
+        xPred = cat(4,xPred,sigmoid(xPredRaw));
+    end
+        
+   
     elbo = ELBOloss(XTest, xPred, zMean, zLogvar);
     
     % Update figure and print results
@@ -180,6 +208,8 @@ for epoch = 1:numEpochs
     plotTitle.String = sprintf('Training progress - epoch %u/%u', epoch, numEpochs);
     drawnow 
 end
+
+
 end
 
 function [zSampled, zMean, zLogvar] = sampling(encoderNet, x)
@@ -245,7 +275,6 @@ end
 
 function visualizeReconstruction(XTest,nRecons, encoderNet, decoderNet)
 
-title("Example ground truth image vs. reconstructed image")
 for c=1:nRecons
     idx = randi(size(XTest,4),1); % pull random
     X = XTest(:,:,:,idx);
@@ -257,7 +286,8 @@ for c=1:nRecons
     XPred = gather(extractdata(XPred));
     
     comparison = [X, ones(size(X,1),1), XPred];
-    figure; imshow(comparison,[]),
+    figure; imshow(comparison,[]), title("Example ground truth image vs. reconstructed image")
+
 end
 
 end
@@ -296,8 +326,10 @@ ylabel("Z_v_a_r(1)")
 axis equal
 end
 
+% inputs- decoderNet, and latentDim is number of latent dimensions, and
+% this produces 25 images
 function generate(decoderNet, latentDim)
-randomNoise = dlarray(randn(1,1,latentDim,25),'SSCB');
+randomNoise = dlarray(randn(1,1,latentDim,1),'SSCB');
 generatedImage = sigmoid(predict(decoderNet, randomNoise));
 generatedImage = extractdata(generatedImage);
 

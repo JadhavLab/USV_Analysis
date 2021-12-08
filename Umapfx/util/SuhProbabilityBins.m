@@ -48,6 +48,9 @@ classdef SuhProbabilityBins < handle
         end
         
         function out=decompress(this, data)
+            if size(data, 1) ~= size(this.means, 1)
+                data=data';
+            end
             out=data(this.ptrs,:);
             if this.retainData
                 this.lastDecompress=data;
@@ -64,8 +67,12 @@ classdef SuhProbabilityBins < handle
             else
                 assert(false, 'Expect 1 column for bin pointers');
             end
-            out=zeros(N,1);
-            out(this.ptrs)=labels;
+            if length(this.ptrs) ~= size(labels,1)
+                labels=labels';
+            end
+            C=size(labels,2);
+            out=zeros(N,C);
+            out(this.ptrs,:)=labels;
             if this.retainData
                 this.originalLabels=labels;
             end

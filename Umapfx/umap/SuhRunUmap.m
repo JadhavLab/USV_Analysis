@@ -149,7 +149,8 @@ classdef SuhRunUmap < handle
            
             %READY TO REDUCE HiD to LoD!!
             %init top level function variables set by reduceHiD2LoD
-            reduction=[]; strReduction=[];pythonTemplate=[];clusterIdentifiers=[];
+            reduction=[]; strReduction=[];pythonTemplate=[];...
+                probability_bins=[];clusterIdentifiers=[];densityBars=[];
             
             reduceHiD2LoD;
             
@@ -160,7 +161,8 @@ classdef SuhRunUmap < handle
                 
                 showAndSaveReduction;
             else
-                msg('Parameter reduction was cancelled or not done');
+                msg(Html.WrapHr(['Parameter reduction was cancelled ...'...
+                    '<br>' Html.WrapBoldSmall(' (or not done)') ]));
                 if exist('pu', 'var') && isa(pu, 'PopUp')
                     pu.stop;
                     pu.dlg.dispose;
@@ -176,13 +178,47 @@ classdef SuhRunUmap < handle
             globals.save;
             
             if beGraphic && ~isempty(reduction)
+                roi=[];roiTable=[]; seekingDataIsland=false;wbUp=true;
+                lastRoiPos=[];
+                    
+                finishPlot;
+            end
+            this.reduced_data=reduction;
+            this.umap=umap;
+            this.extras=extras;
+            this.clusterIdentifiers=clusterIdentifiers;
+            listenToPredictions;
+            
+            
+            function listenToPredictions
+                if beGraphic && ~isempty(this.extras)
+                    table=this.extras.getMatchTable(5);
+                    if ~isempty(table) && ~isempty(table.predictions)
+                        table.predictions.setSelectionListener(...
+                            @notifyPredictions);
+                    end
+                    table=this.extras.getMatchTable(3);
+                    if ~isempty(table)
+                        table.setPredictionListener(@notifyPredictions);
+                    end
+                    table=this.extras.getMatchTable(4);
+                    if ~isempty(table)
+                        table.setPredictionListener(@notifyPredictions);
+                    end
+                end
+            end
+            
+            function notifyPredictions(predictions)
+                if ~isempty(predictions.selectedIds)
+                    Gui.Flash(curAxes, ...
+                        reduction(predictions.selectedData,:), ...
+                        predictions);
+                end
+            end
+            
+            function finishPlot
                 %handle region of interest stuff
                 if exist('tb', 'var') && ishandle(fig)
-                    roi=[];
-                    roiTable=[];
-                    seekingDataIsland=false;
-                    wbUp=true;
-                    lastRoiPos=[];
                     set(fig,'WindowButtonDownFcn', @(h,e)wbd);
                     set(fig, 'WindowButtonUpFcn', @(h,e)wbu);
                     if ~isempty(tb)
@@ -194,17 +230,23 @@ classdef SuhRunUmap < handle
                 if ~argued.contains('plot_title')
                     if ischar(csv_file_or_data)
                         [~,csvFile]=fileparts(csv_file_or_data);
-                        title(curAxes, ['UMAP reduced ' csvFile]);
+                        if args.fast_approximation
+                            word='\itapproximated\rm';
+                        else
+                            word='reduced';
+                        end
+                        if ~args.python
+                            title(curAxes, ['UMAP ' word ' \color{blue}' csvFile]);
+                        else
+                            title(curAxes, {...
+                                ['UMAP ' word ' \color{blue}' csvFile],...
+                                '\color{magenta}(using python)'});
+                        end
                     end
                 elseif ~isempty(args.plot_title)
                     title(curAxes, args.plot_title);
                 end
-
             end
-            this.reduced_data=reduction;
-            this.umap=umap;
-            this.extras=extras;
-            this.clusterIdentifiers=clusterIdentifiers;
             
             function showAndSaveReduction
                 if args.save_output
@@ -409,7 +451,7 @@ classdef SuhRunUmap < handle
                         warning('No clusterIdentifiers output argument');
                     elseif ~strcmpi(args.cluster_output, 'ignore')
                         try
-                            clusterIdentifiers=doClusters(reduction);
+                            clusterIdentifiers=doClusters();
                             if isempty(clusterIdentifiers)
                                 dispNoDbScan;
                             end
@@ -494,23 +536,31 @@ classdef SuhRunUmap < handle
                     % version of parameter_names
                     umap.supervisors.setArgs('parameter_names', parameter_names);
                 end
+                if ~isempty(umap.supervisors)
+                    densityBars=DensityBars([inData;...
+                        umap.raw_data]);
+                else
+                    densityBars=DensityBars(inData);
+                end
                 if args.fast_approximation
                     reportProgress('Probability binning for fast approximation', true);
                     if beGraphic
                         pu.setText2('Compressing for fast approximation...');
                     end
-                    probabilityBins=SuhProbabilityBins(inData, true);
-                    inData=probabilityBins.compress;
+                    probability_bins=SuhProbabilityBins(inData, true);
+                    if ~isempty(umap.supervisors)
+                        umap.supervisors.probability_bins=probability_bins;
+                    end
+                    inData=probability_bins.compress;
                     if hasLabels
-                        labels=probabilityBins.fit(labels);
+                        labels=probability_bins.fit(labels);
                     end
                     if beGraphic
                         pu.setText2(...
                             sprintf('(fast approximation condenses %s rows to %s)',...
                             String.encodeK(nRows), ...
-                            String.encodeK(size(probabilityBins.weights,1))));
+                            String.encodeK(size(probability_bins.weights,1))));
                     end
-                    
                 end
                 if ~isempty(template_file)
                     if ~isempty(umap.pythonTemplate)
@@ -573,9 +623,9 @@ classdef SuhRunUmap < handle
                 end
                 
                 if args.fast_approximation && ~isempty(reduction)
-                    labels=probabilityBins.originalLabels;
-                    inData=probabilityBins.originalData;
-                    reduction=probabilityBins.decompress(reduction);
+                    labels=probability_bins.originalLabels;
+                    inData=probability_bins.originalData;
+                    reduction=probability_bins.decompress(reduction);
                 end
                 if ~isempty(paramAnnotation)
                     try
@@ -1221,6 +1271,14 @@ classdef SuhRunUmap < handle
                             puLocation='south++';
                         end
                     end
+                    if args.fast_approximation ...
+                            && nRows*nCols<UmapUtil.MINIMUM_FAST_APPROXIMATION
+                        warning(['Fast approximation ignored for %s data points'...
+                            '( minimum is %s )'], num2str(nRows*nCols), ...
+                            num2str(UmapUtil.MINIMUM_FAST_APPROXIMATION));
+                        args.fast_approximation=false;
+                    end
+                
                     if args.fast_approximation
                         ttl='Approximating parameter reduction....';
                     else
@@ -1247,7 +1305,9 @@ classdef SuhRunUmap < handle
             function hideAnnotations
                 try
                     delete(paramAnnotation);
-                    delete(timeAnnotation);
+                    if args.hide_reduction_time
+                        delete(timeAnnotation);
+                    end
                 catch
                 end
             end
@@ -1445,6 +1505,7 @@ classdef SuhRunUmap < handle
                     SuhWindow.Follow(fig, args.locate_fig);
                     SuhWindow.SetFigVisible(fig);
                 else
+                    Gui.FitFigToScreen(fig);
                     set(fig, 'visible', 'on');
                 end
                 
@@ -1493,6 +1554,7 @@ classdef SuhRunUmap < handle
                     legendRois.setSaveInfo(['umap_' args.reductionType...
                         '_roi' args.output_suffix '.properties' ], args.save_output,...
                         args.output_folder);
+                    Gui.SetJavaVisible(legendRois.javaLegend);
                 end
             end
             
@@ -1601,7 +1663,7 @@ classdef SuhRunUmap < handle
                     end
                     roiTable=Kld.Table(inData(rows, :), parameter_names, ...
                         args.roi_scales,fig, htmlRoiName, 'south', 'Dimension', 'UMAP', ...
-                        false, [], {fig, where, true}, false);
+                        false, [], {fig, where, true}, false, densityBars);
                 else
                     roiTable.refresh(inData(rows,:), htmlRoiName, rows);
                 end
@@ -1739,7 +1801,7 @@ classdef SuhRunUmap < handle
                             [qft, tNames]=UmapUtil.Match(args, inData, ...
                                 testSetLabels, labelMap, clusterIds,  ...
                                 args.cluster_detail{c}, matchStrategy, ...
-                                false, pu, false);
+                                false, pu, false, [], probability_bins);
                             if ~isempty(qft)
                                 if scenario==3 || scenario==4
                                     last3or4=qft;
@@ -1845,11 +1907,11 @@ classdef SuhRunUmap < handle
                 end
             end
             
-            function clues=doClusters(data)
-                if isempty(data)
+            function clues=doClusters()
+                if isempty(reduction)
                     clues=[];
                 else
-                    [mins, maxs]=Supervisors.GetMinsMaxs(data);
+                    [mins, maxs]=Supervisors.GetMinsMaxs(reduction);
                     if beGraphic
                         puClue=PopUp('Computing clusters', 'south++');
                     end
@@ -1865,7 +1927,7 @@ classdef SuhRunUmap < handle
                                 yLabel=['UMAP-Y' dimInfo];
                                 zLabel=['UMAP-Z' dimInfo];
                             end
-                            cp=ClusterPlots.Go(fig, data, clues, [], xLabel, ...
+                            cp=ClusterPlots.Go(fig, reduction, clues, [], xLabel, ...
                                 yLabel, zLabel, true, [], false, true, false,...
                                 true, 'south west++', args);
                             if nCols-labelCols==2
@@ -2422,7 +2484,7 @@ classdef SuhRunUmap < handle
                     String.encodeInteger(nU), String.encodePercent(...
                     nU/nRows, 1, 1));
                 if ~beGraphic
-                    ok=false;
+                    ok=false; %#ok<NASGU>
                     error('This many labels is not supported, %s', txt);
                     
                 end

@@ -608,6 +608,18 @@ classdef File
             end
         end
     
+        function path=TrimHome(path)
+            if ~isempty(path)
+                ur=File.Home;
+                if startsWith(path, ur)
+                    N=length(ur);
+                    path=path(N+2:end);
+                elseif startsWith(path, '~/')
+                    path=path(3:end);
+                end
+            end
+        end
+        
         function path=TrimUserRoot(path)
             ur=File.Home;
             if ~isempty(path) && String.StartsWith(path, ur)
