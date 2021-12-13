@@ -1,12 +1,13 @@
-function [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack,encoderNet,decoderNet,verbose)
+function [encoderNet,decoderNet,data] = generate_betaVAE_encoder(imageStack,encoderNet,decoderNet,verbose)
 % Stolen somewhat from deepsqueak, but its also just using the matlab how
 % to Variational AutoEncoder function
 
 % data are
 allcalls=imageStack;
-numEpochs = 200;
+numEpochs = 100;
 miniBatchSize = 512;
-nLatentDim=12;
+nLatentDim=8;
+lossMethod=1;
 
 
 % if we dont already have our net, build one from a random bit of these
@@ -19,16 +20,16 @@ end
 if ~exist('verbose','var'), verbose=0; end
 
 images = dlarray(allcalls, 'SSCB');
-    % Divide the images into training and validation
-    [trainInd,valInd] = dividerand(size(images,4), .9, .1);
-    XTrain  = images(:,:,:,trainInd); % 90% of data
-    XTest   = images(:,:,:,valInd); % 10% of data
+% Divide the images into training and validation
+[trainInd,valInd] = dividerand(size(images,4), .9, .1);
+XTrain  = images(:,:,:,trainInd); % 90% of data
+XTest   = images(:,:,:,valInd); % 10% of data
 
 if isempty(encoderNet) ||isempty(decoderNet)
     % make sure calls are xpix by y pix by 1 by ncalls (third dim is color)
-    [encoderNet, decoderNet] = VAE_model(nLatentDim);    
+    [encoderNet, decoderNet] = VAE_model(nLatentDim);
     % Train the network
-    [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs);
+    [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs,lossMethod);
 end
 
 
@@ -89,7 +90,7 @@ encoderLG = layerGraph([
     
     fullyConnectedLayer(1024, 'Name', 'fc_1')
     reluLayer('Name','relu5')
-
+    
     fullyConnectedLayer(2 * latentDim, 'Name', 'fc_encoder')
     ]);
 
@@ -125,7 +126,7 @@ decoderNet = dlnetwork(decoderLG);
 end
 
 
-function [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs)
+function [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XTest,miniBatchSize,numEpochs,lossMethod)
 
 numTrainImages = size(XTrain, 4);
 
@@ -163,18 +164,18 @@ for epoch = 1:numEpochs
         XBatch = dlarray(single(XBatch), 'SSCB');
         
         if (executionEnvironment == "auto" && canUseGPU) || executionEnvironment == "gpu"
-            XBatch = gpuArray(XBatch);           
-        end 
-            
+            XBatch = gpuArray(XBatch);
+        end
+        
         [infGrad, genGrad] = dlfeval(...
-            @modelGradients, encoderNet, decoderNet, XBatch);
+            @modelGradients, encoderNet, decoderNet, XBatch, lossMethod, epoch/numEpochs);
         
         [decoderNet.Learnables, avgGradientsDecoder, avgGradientsSquaredDecoder] = ...
             adamupdate(decoderNet.Learnables, ...
-                genGrad, avgGradientsDecoder, avgGradientsSquaredDecoder, iteration, lr);
+            genGrad, avgGradientsDecoder, avgGradientsSquaredDecoder, iteration, lr);
         [encoderNet.Learnables, avgGradientsEncoder, avgGradientsSquaredEncoder] = ...
             adamupdate(encoderNet.Learnables, ...
-                infGrad, avgGradientsEncoder, avgGradientsSquaredEncoder, iteration, lr);
+            infGrad, avgGradientsEncoder, avgGradientsSquaredEncoder, iteration, lr);
     end
     elapsedTime = toc;
     
@@ -182,7 +183,7 @@ for epoch = 1:numEpochs
     if ~isvalid(h)
         return
     end
-
+    
     
     
     % forward the whole set
@@ -198,36 +199,38 @@ for epoch = 1:numEpochs
         xPredRaw=forward(decoderNet, z(:,:,:,batches(bt,1):batches(bt,2)));
         xPred = cat(4,xPred,sigmoid(xPredRaw));
     end
-        
-   
-    elbo = ELBOloss(XTest, xPred, zMean, zLogvar);
+    
+    
+    elbo = betaELBOloss(XTest, xPred, zMean, zLogvar);
     
     % Update figure and print results
     fprintf('Epoch : %-3g Test ELBO loss = %#.5g. Time taken for epoch = %#.3gs\n', epoch, gather(extractdata(elbo))/2, elapsedTime)
     addpoints(h,epoch,double(gather(extractdata(elbo))));
     plotTitle.String = sprintf('Training progress - epoch %u/%u', epoch, numEpochs);
-    drawnow 
+    drawnow
 end
 
 
 end
 
-function [infGrad, genGrad] = modelGradients(encoderNet, decoderNet, x)
 
-% generate your z distribution to get your KL values
+function [infGrad, genGrad] = modelGradients(encoderNet, decoderNet, x, lossMethod, progress)
 [z, zMean, zLogvar] = sampling(encoderNet, x);
-% generate your Xpred for reconstruction loss
 xPred = sigmoid(forward(decoderNet, z));
-% merge the two
-loss = ELBOloss(x, xPred, zMean, zLogvar);
-% and run gradient
+switch lossMethod
+    case 1
+        loss = ELBOloss(x, xPred, zMean, zLogvar);
+    case 2
+        loss=betaELBOloss(x, xPred, zMean, zLogvar);
+    case 3
+        loss=betaELBOloss2(x, xPred, zMean, zLogvar,progress);
+end
+
 [genGrad, infGrad] = dlgradient(loss, decoderNet.Learnables, ...
     encoderNet.Learnables);
 
 end
 
-
-% this generates your z distributions
 function [zSampled, zMean, zLogvar] = sampling(encoderNet, x)
 compressed = forward(encoderNet, x);
 d = size(compressed,1)/2;
@@ -246,35 +249,9 @@ z = reshape(z, [1,1,sz]); % reshape these variables by dimension
 zSampled = dlarray(z, 'SSCB'); % send into your dlarray
 end
 
-function [infGrad, genGrad] = modelGradients(encoderNet, decoderNet, x)
-[z, zMean, zLogvar] = sampling(encoderNet, x);
-xPred = sigmoid(forward(decoderNet, z));
-loss = ELBOloss(x, xPred, zMean, zLogvar);% the loss is the kl divergence % 
-[genGrad, infGrad] = dlgradient(loss, decoderNet.Learnables, ...
-    encoderNet.Learnables);
-end
-
-%%%%% LOSS FUNCTION STUFF %%%%%
-
-% elbo loss: −LVAE=logpθ(x)−DKL(qϕ(z|x)∥pθ(z|x))
-
-% when b=1 its the normal ELBO function. when b>1, it splits the bariables.
-%
-% beta vae loss: LBETA(ϕ,β)=−Ez∼qϕ(z|x)logpθ(x|z)+βDKL(qϕ(z|x)∥pθ(z))
-% where the addition is the Ez~qw(z|x)
-
-
-% this is the loss function, 
-% which is where you would compute beta
-
-% this estimates the kullback-leibler divergence
-%  math: Dkl= real distrib (imges given vector) ||(similarity) estimated
-%  distrib(images given vector)
-% the key here is that you can calculate the real
-
-
-
+% this is just a vae loss
 function elbo = ELBOloss(x, xPred, zMean, zLogvar)
+% elbo loss: −LVAE=logpθ(x)−DKL(qϕ(z|x)∥pθ(z|x))
 
 % xpred=images, zMean=latent variables, x is real images and zlogvar is how
 % you generate your posterior distributions (gaussian with var Z)
@@ -282,14 +259,51 @@ squares = 0.5*(xPred-x).^2;
 reconstructionLoss  = sum(squares, [1,2,3]); % e.g. likelihood of generating the data you did
 
 
-KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1); % kl which is 
+KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1); % kl which is
 
 % elbo= evidence lower bound (average across your test image batch)
 elbo = mean(reconstructionLoss + KL);
 end
 
+% this is the higgins elbo loss
+function elbo = betaELBOloss(x, xPred, zMean, zLogvar)
+% xpred=images, zMean=latent variables, x is real images and zlogvar is how
+% when b=1 its the normal ELBO function. when b>1, it splits the bariables.
+
+% beta vae loss: LBETA(ϕ,β)=−Ez∼qϕ(z|x)logpθ(x|z)+βDKL(qϕ(z|x)∥pθ(z))
+% where the addition is the beta scaling factor
+
+beta=5;
+
+squares = 0.5*(xPred-x).^2;
+reconstructionLoss  = sum(squares, [1,2,3]); % e.g. likelihood of generating the data you did
 
 
+KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1); % kl which is
+% add beta here of 1.2
+% elbo= evidence lower bound (average across your test image batch)
+elbo = mean(reconstructionLoss + beta*KL); % could be sum, doesnt matter, but its across all latentdims
+end
+
+% this is the burgess elbo loss
+function elbo = betaELBOloss2(x, xPred, zMean, zLogvar,progress)
+
+% L(θ, φ; x, z, C) = Eqφ(z|x)[log pθ(x|z)] − γ * |DKL (qφ(z|x) || p(z))-C|
+%    Loss          =  recon loss           - y *  (KL loss - Citerations)
+
+gamma=100; %(bigger than beta)
+Cmax=25; % scaling factor
+% xpred=images, zMean=latent variables, x is real images and zlogvar is how
+% you generate your posterior distributions (gaussian with var Z)
+squares = 0.5*(xPred-x).^2;
+reconstructionLoss  = sum(squares, [1,2,3]); % e.g. likelihood of generating the data you did
+
+
+KL = -.5 * sum(1 + zLogvar - zMean.^2 - exp(zLogvar), 1); % kl which is
+% add beta here of 1.2
+% elbo= evidence lower bound (average across your test image batch)
+elbo = mean(reconstructionLoss + gamma*(KL-25*progress));
+end
 
 
 
@@ -307,7 +321,7 @@ for c=1:nRecons
     
     comparison = [X, ones(size(X,1),1), XPred];
     figure; imshow(comparison,[]), title("Example ground truth image vs. reconstructed image")
-
+    
 end
 
 end

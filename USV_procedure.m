@@ -96,10 +96,15 @@ segment usvs, dont fuck with it, it should just work.
 
 getCallTimes;
 
-% the next step i think would be to get all the binary images and turn them
-% into a smaller vector (like they do in deepsqueak using a vae)
 
-%% now to drop these into smaller dimensions using a VAE
+
+%% now generate a metadata struct
+
+% or just 
+
+% USVlegend is saved in USVmetadataC1-9.mat
+load('G:\USV data\USVmetadataC1-9');
+
 
 % i will generate a new latentscore variable for each day that is the vae
 % deconstruction of the data.  I'll have to save the vae encoder and
@@ -145,120 +150,19 @@ end
 
 %%
 
+% now use a specific dataset:
 edit normalDevelopment
-% USVlegend is saved in USVmetadataC1-9.at
-% lets take just the males, and just between P4 to P10
-% this is hardcoded for now, but suffice to say its going to be 600 msec
-% images from 15 khz to 90 khz
-runSess=USVlegend; %(lower(USVlegend.Sex)=='m' & USVlegend.age<13,:);
-allcalls=[]; allCallinfo=[];
-wb=waitbar(0,'concatenating ALL the images');
-% what percentage of images will we need to classify these guys????
-% probably like half
-bigclock=tic;
-for i=1:height(runSess)
-    smallclock=tic;
-    load(fullfile(runSess.folder(i,:),runSess.name(i)),'blobs','segCalls','params');
-    okfreqs=params.fvec>15000 & params.fvec<90000;
-    badcalls=segCalls.onsetTime<5 | segCalls.offsetTime>min([180 size(blobs,2)*params.timestep])-5;
-    segCalls=segCalls(~badcalls,:);
-    mycalls=false(128,128,1,height(segCalls));
-    callcenters=mean(table2array(segCalls(:,1:2)),2);
-    centerinds=interp1(params.tvec,1:length(params.tvec),callcenters,'nearest');
-    calldurs=(segCalls.offsetTime-segCalls.onsetTime)/params.timestep;
-    
-    % go forward 200 msec, and forward 200 msec, then resize to 256
-    for j=1:length(callcenters)
-    
-        % were going from many to 128x128 x 1 images
-        mycalls(:,:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
-    end
-    allCallinfo=[allCallinfo; [calldurs ones(size(calldurs,1),1)*i (1:length(calldurs))']]; % add call duration, then the sessnum and callnum
-    allcalls=cat(4,allcalls,mycalls);
-    waitbar(i/height(runSess),wb,sprintf('Has taken %d mins, will prolly go %d more mins',...
-    round(toc(bigclock)/60),round(toc(smallclock)/60*(height(runSess)-i))));
-end
-close(wb);
+
+
+%
+% the next step i think would be to get all the binary images and turn them
+% into a smaller vector (like they do in deepsqueak using a vae)
+
+callsAutoencoder;
+
+
 
 %%
-% use create_tsne callback to generate this code
-
-edit generate_VAE_encoder
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%% USE [encoderNet,decoderNet,data] = generate_VAE_encoder(imageStack)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% now run the encoder decoder...
-% Load the network model
-
-% then yu can run tsne or umap on this and cluster
-% first will need to pull a random set of usvs to generate our model.  This
-% is throttled by the size of the gpu i guess...
-
-% 2. build encoder and decoder using those images
-[encoderNet,decoderNet,data] = generate_VAE_encoder(allcalls);
-
-% save encodernet and decodernet!!
-
-% 4. put the callduration back in
-% 32 dims, 33rd is callduration, and allCallinfo is session and call number
-% from runSess;
-callData=[data allCallinfo(:,1)];
-
-% 5. see if any of these predict genotype
-% gather our genotypes
-for i=1:max(allCallinfo(:,2))
-    allCallinfo(allCallinfo(:,2)==i,4)=contains(runSess.Genotype(i),'fx');
-end    
-
-
-[b]=fitglm(callData,allCallinfo(:,4));
-
-% 6. if not, cluseter calls, see if one genotype dominates one cluster, or
-% whether one call varies by genotype
-mycolors=lines(2);
-for i=2: size(callData,2)
-    for j=1:i-1
-        figure;
-        scatter(callData(:,i),callData(:,j+6),4,mycolors(allCallinfo(:,4)+1,:),'filled');
-    end
-end
-
-
-
-%% try tsne on these animals
-% some very basic questions:
-%{
-1. do these calls cluster at all in any way
-2. do these calls stratify by.... animal, genotype, time....
-
-
-%}
-
-%% or umap
-if ~contains(path,'C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap')
-    addpath(genpath('C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap'));
-end
-[embed2,umap2,clusterid] = run_umap(data);
-rmpath(genpath('C:\Users\Jadhavlab\Documents\gitRepos\USV_Analysis\Umapfx\umap'));
-%%
-ratNames=string();
-for i=1:length(allCallinfo)
-    ratNames(i)=runSess.Aliases(allCallinfo(i,2),1);
-end
-[a,b,c]=unique(ratNames);
-mycolors=parula(length(a));
-for perplexity=1:8
-embed = tsne(callData,'Verbose',1,'Perplexity',perplexity*4+16);
-
-embed = (embed - min(embed)) ./ (max(embed)-min(embed));
-embedY = 1-embed(:,2); % flip Y coordinates so the images looks like the UMAP figure
-embedX = embed(:,1);
-
-figure;
-scatter(embedY,embedX,5,mycolors(c,:),'filled');
-title(sprintf('perplexity %d', perplexity*6));
-end
 
 %% using deepsqueak...
 callfiledir='G:\USV data\Detections';
