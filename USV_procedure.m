@@ -158,11 +158,10 @@ edit normalDevelopment
 % the next step i think would be to get all the binary images and turn them
 % into a smaller vector (like they do in deepsqueak using a vae)
 
-callsAutoencoder;
+edit callsAutoencoder;
 
 
 
-%%
 
 %% using deepsqueak...
 callfiledir='G:\USV data\Detections';

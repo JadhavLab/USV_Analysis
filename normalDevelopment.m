@@ -33,6 +33,18 @@ for i=1:height(runSess)
 end
 close(wb);
 
+
+allCallinfo=table(allCalldurs(:,2),allCalldurs(:,3),'VariableNames',...
+    {'sessionNumber','call number'});
+
+for i=1:height(allCallinfo)
+    allCallinfo.Age(i)=runSess.age(allCallinfo.sessionNumber(i));
+    allCallinfo.Sex(i)=runSess.Sex(allCallinfo.sessionNumber(i));
+    allCallinfo.Cohort(i)=runSess.Cohort(allCallinfo.sessionNumber(i));
+    allCallinfo.Rat(i)=runSess.ratname(allCallinfo.sessionNumber(i));
+    allCallinfo.Genotype(i)=runSess.Genotype(allCallinfo.sessionNumber(i));
+end
+
 %save('AllCallImages','runSess','allCallinfo','allcalls','-v7.3')
 
 %%
@@ -58,3 +70,4 @@ load('G:\USV data\AllCallImages');
 % is throttled by the size of the gpu i guess...
 
 
+edit callsAutoencoder.m

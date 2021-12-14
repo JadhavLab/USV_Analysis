@@ -45,17 +45,7 @@ callData=[data zscore(allCalldurs(:,1))];
 
 % 5. Show how these relate to age...
 % callData=[32 hidden dims call length];
-if ~istable(allCalldurs)
-allCallinfo=table(allCalldurs(:,2),allCalldurs(:,3),'VariableNames',...
-    {'sessionNumber','call number'});
-end
-for i=1:height(allCallinfo)
-    allCallinfo.Age(i)=runSess.age(allCallinfo.sessionNumber(i));
-    allCallinfo.Sex(i)=runSess.Sex(allCallinfo.sessionNumber(i));
-    allCallinfo.Cohort(i)=runSess.Cohort(allCallinfo.sessionNumber(i));
-    allCallinfo.Rat(i)=runSess.ratname(allCallinfo.sessionNumber(i));
-    allCallinfo.Genotype(i)=runSess.Genotype(allCallinfo.sessionNumber(i));
-end
+
 %
 % two approaches, first get session averages and run that, second is run on
 % all data across
@@ -122,9 +112,25 @@ end
 % to use either real calls as examples or i need to use beta vae
 %% first look is pca
 
+dayData=[];
+for k=1:size(callData,2)
+    dayData(:,k)=accumarray(allCallinfo.sessionNumber,callData(:,k),[],@mean);
+end
+
+figure;
+% plot this out for m, f, fx, ctrl
+groups=[USVlegend.age ((lower(USVlegend.Genotype)=='fx')*2 + double(lower(USVlegend.Genotype)=='wt'))];
 
 
-allcolors=parula(max(allCallinfo.Age));
+allcolors=parula(length(unique(allCallinfo.Age)));
+dubcolors=permute(repmat(allcolors,[1 1 3]),[2 3 1]);
+[a,b,c]=pca(dayData);
+% look at all calls regardless of session
+gscatter(b(:,1),b(:,2),groups,dubcolors(:,:)','ox+',5,'off');
+allkids=get(gca,'Children');
+legend(flipud(allkids(end-2:end)),{'Het','wt','fx'});
+
+figure;
 [a,b,c]=pca(callData);
 % look at all calls regardless of session
 figure; gscatter(b(:,1),b(:,2),allCallinfo.Age);
