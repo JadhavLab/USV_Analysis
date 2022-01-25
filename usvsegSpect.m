@@ -50,14 +50,14 @@ end
 
 % for some reason this creates oscillations in the spect image in the freq
 % domain
-spect = imadjust(imcomplement(abs(spect)./max(abs(spect(:)))));
+adjusted = imadjust(imcomplement(abs(spect)./max(abs(spect(:)))));
 
 
 % liftering the data- basically removes any slow oscillations in the
 % frequency spectrum (like a standing oscillation, or any harmonics)
 liftercutoff = 3; % fixed parameter
-fftsize = (size(spect,1)-1)*2;
-cep = fft([spect;flipud(spect(2:end-1,:))]);
+fftsize = (size(adjusted,1)-1)*2;
+cep = fft([adjusted;flipud(adjusted(2:end-1,:))]);
 lifter = ones(size(cep));
 lifter(1:liftercutoff,:) = 0;
 lifter((fftsize-liftercutoff+1):fftsize,:) = 0;
@@ -80,14 +80,20 @@ dilated=SmoothMat2(liftmed,[10 10],[1/1.6 1000/120]);
 
 %{
 figure; 
-sp=subplot(4,1,1); imagesc(liftmed(:,1:10000));
-sp(2)=subplot(4,1,2); imagesc(dilated(:,1:10000));
-sp(3)=subplot(4,1,3); imagesc(dilated2(:,1:10000));
-sp(4)=subplot(4,1,4); imagesc(overdilated(:,1:10000))
-linkaxes(sp);
-%}
+sp=subplot(6,1,1); imagesc(abs(spect(:,1:100000)));
+sp(2)=subplot(6,1,2);  imagesc(adjusted(:,1:100000));
+sp(3)=subplot(6,1,3); imagesc(liftered(:,1:100000));
+sp(4)=subplot(6,1,4);  imagesc(liftmed(:,1:100000));
+sp(5)=subplot(6,1,5); imagesc(dilated(:,1:100000));
 
-adjusted=zscore(dilated,1,1);
+linkaxes(sp);
+drawnow;
+%}
+adjusted=dilated;
+
+% zscoring cleans up during call but messies between calls.
+%adjusted=zscore(dilated,1,1); 
+
 
 
 

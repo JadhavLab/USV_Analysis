@@ -52,7 +52,7 @@ params=struct('fs',audiodata.SampleRate,'timewin',timewin);
 
 
 % HARDCODED PARAMETERS:
-winsize=.0008;
+winsize=.0008; % 0.8 msec or about the duration of a spike
 % bins in a window
 winbins=round(audiodata.SampleRate*winsize);
 % bins in a step

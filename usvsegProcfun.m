@@ -23,7 +23,19 @@ thrshd = thresholding(spect,params,thresh);
 % onset/offset detection
 [onoffset,onoffsetm,~,blobthrshd] = detectonoffset(thrshd,params);
 
+%{
+subplot(6,1,6);
+plot(thrshd(:,1:100000));
+yyaxis right;
+onoff=onoffsetm(onoffsetm(:,1)<params.tvec(100000),:);
+myx=onoff/params.timestep; myx(:,3)=nan;
+plot(linearize(myx'),ones(1,numel(myx)),'LineWidth',3);
+yyaxis left;
+linkaxes(get(gcf,'Children'));
 % use onoffsetm for the timewindows
+%}
+
+
 
 % peak tracking, there is some power here in that it can use spectral
 % saliency.  That is a good method for determining whether the shape of the
@@ -46,12 +58,22 @@ function thresh = estimatethresh(fltnd,params)
 fnmin = max([1 find(params.fvec<params.freqmin,1,'last')]);
 fnmax = min([size(fltnd,1) find(params.fvec>params.freqmax,1,'first')]);
 cut = fltnd(fnmin:fnmax,:);
-bin = -0.05:0.1:10;
-bc = bin(1:end-1)+diff(bin)/2;
+%bin = -0.05:0.1:10;
+% bin counts, bin edges
+[binC,binE]=histcounts(cut(:));% should get you over a thousand
+[~,centerind]=max(binC); % this oughtt o be the max
+edges=binE(binC>(max(binC)/2)); % get all bins that are above half the max bin
+fwhmDist=edges(end)-edges(1); % find the full width of that area
+% add half that width to the center index, multiply by 2.35
+thresh=binE(centerind)+(fwhmDist/2)*2.35; % 2.35 sd from mean ~99.990%
+%{
+% the old way, doesnt seem to work
+bc = bin(1:end-1)+diff(bin)/2; % bin centers
 h = histcounts(cut(:),bin);
-fwhm = bc(find(h<h(1)/2,1)-1)*2;
+fwhm = bc(find(h<h(1)/2,1)-1)*2; % bin centers where 
 sigma = fwhm/2.35;
 thresh = sigma*params.threshval;
+%}
 
 end
 
@@ -64,7 +86,15 @@ function thrshd = thresholding(fltnd,params,thresh)
 fnmin = find(params.fvec<params.freqmin,1,'last');
 fnmax= find(params.fvec>params.freqmax,1,'first');
 
+% use a noise threshold too
+% when the
+mymean=nanmean(fltnd(:));
+mysdev=std(fltnd(:));
+blackout=nanmean(fltnd>mymean+mysdev*1.3)>.2; % when more than 20% of the spect is stronger than top 10% of all spects
+
+
 mask = zeros(size(fltnd));
+%mask(fnmin:fnmax,~blackout) = 1;
 mask(fnmin:fnmax,:) = 1;
 thrshd = (fltnd>thresh).*mask;
 

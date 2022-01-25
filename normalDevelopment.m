@@ -2,16 +2,18 @@
 % lets take just the males, and just between P4 to P10
 % this is hardcoded for now, but suffice to say its going to be 600 msec
 % images from 15 khz to 90 khz
+
+
 runSess=USVlegend(lower(USVlegend.Sex)=='m' & USVlegend.age>13,:);
 %runSess=USVlegend(USVlegend.age>10,:);
 allcalls=[]; allCalldurs=[];
-wb=waitbar(0,'concatenating older animal images');
+wb=waitbar(0,'concatenating animal images');
 % what percentage of images will we need to classify these guys????
 % probably like half
 bigclock=tic;
 for i=1:height(runSess)
 
-    load(fullfile(runSess.folder(i,:),runSess.name(i)),'blobs','segCalls','params');
+    load(fullfile(runSess.folder(i,:),runSess.name(i)),'blobs','segCalls','params','spect');
     okfreqs=params.fvec>15000 & params.fvec<90000;
     badcalls=segCalls.onsetTime<5 | segCalls.offsetTime>min([180 size(blobs,2)*params.timestep])-5;
     segCalls=segCalls(~badcalls,:);
@@ -20,11 +22,19 @@ for i=1:height(runSess)
     centerinds=interp1(params.tvec,1:length(params.tvec),callcenters,'nearest');
     calldurs=(segCalls.offsetTime-segCalls.onsetTime)/params.timestep;
     
-    % go forward 200 msec, and forward 200 msec, then resize to 256
+
     for j=1:length(callcenters)
-    
-        % were going from many to 128x128 x 1 images
-        mycalls(:,:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+        % go forward 200 msec, and forward 200 msec, then resize to 256
+        % were going from many to 128x128 x 1 images- this is the bw
+        %mycalls(:,:,:,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+        
+        % or use the actual image, which may be better...
+        mycalls(:,:,:,j)=imresize(spect(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+
+        % or use both! but you'll have to edit here!
+        %mycalls(:,:,1,j)=imresize(blobs(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+        %mycalls(:,:,2,j)=imresize(spect(okfreqs,(centerinds(j)-round(calldurs(j)/1.9)):(centerinds(j)+round(calldurs(j)/1.9))),[128,128]);
+
     end
     allCalldurs=[allCalldurs; [calldurs ones(size(calldurs,1),1)*i (1:length(calldurs))']]; % add call duration, then the sessnum and callnum
     allcalls=cat(4,allcalls,mycalls);

@@ -94,22 +94,29 @@ segment usvs, dont fuck with it, it should just work.
 % this basically takes the deepsqueak data, compares them to usvseg data,
 % and then removes calls that suck...
 
+
+
+% first, you run USVmetadataAnalysis, this aggregates all your metadata,
+% and finds the raw wavfiles for you
 getCallTimes;
 
 
 
 %% now generate a metadata struct
 
-% or just 
+
 
 % USVlegend is saved in USVmetadataC1-9.mat
-load('G:\USV data\USVmetadataC1-9');
-
+%load('G:\USV data\USVmetadataC1-9');
+%load('C:\Users\John Bladon\Desktop\USVmetaData1-6-2021.mat')
+load('C:\Users\John Bladon\Desktop\USVmetaData1-6-2021.mat')
 
 % i will generate a new latentscore variable for each day that is the vae
 % deconstruction of the data.  I'll have to save the vae encoder and
 % decoder data so that I can use it to reconstruct centroids and examples.
 
+%unnecessary right now
+%{
 % first generate the input dataset.
 % this time try the black and white images
 inputfolder=uigetdir('Select folder of usvSeg Data');
@@ -147,11 +154,40 @@ for i=1:length(statfiles)
     end
     USVlegend(i,:)=filedata;
 end
-
+%}
 %%
 
+% first is to show that there are two solid groups- young and old animals.
+% to do this... probably can use basic metrics
+
+statsdir=uigetdir();
+statsdir='E:\Brandeis datasets\FMR1 Project Data\USV data\segData';
+% add all the
+for i=1:height(allSessions)
+    % add some stats data to the files you can
+    newfilename=[allSessions.fileName{i}(1:end-4) '_callData.mat'];
+    datafile=fullfile(statsdir,newfilename);
+    allSessions.callStats{i}=load(datafile,'calldata');
+end
+
+edit age_analysis; % not a script yet
+
+%** principal frequency, frequency spread, and call duration covary
+% could also plot the covariance matrix of all these metrics
+% basically plot a few parameters together, then maybe run 2 group kmeans
+% clustering on average age?
+% show that after clustering there is a high d' effect size (e.g. anova
+% confirms the grouping)
+
+% could compare the binomial output to weight and also age
+% could show that the age at first 'elder call day' is not different across
+% sex and genotype
+% could then show that within age group there is not too much variance?
+
 % now use a specific dataset:
-edit normalDevelopment
+edit normalDevelopment % need to rename, should be the point where we 
+% run the bvae and get deep into the calls- probably amp the b value and
+% drop the latent variables to less than 10
 
 
 %
