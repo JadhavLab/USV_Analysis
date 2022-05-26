@@ -12,15 +12,18 @@ freqmax = params.freqmax;
 fvec = params.fvec;
 %}
 
-% threshold calculation with n*sigma (SD) of background noise 
-
+% threshold calculation with n*sigma (SD) of background noise using the
+% fwhm method
 thresh = estimatethresh(spect,params);
 
+
 % thresholding, thrshd is the thresholded image
+% includes a noise threshold too
 thrshd = thresholding(spect,params,thresh);
 
 
 % onset/offset detection
+% includes a height min and a duration min
 [onoffset,onoffsetm,~,blobthrshd] = detectonoffset(thrshd,params);
 
 %{
@@ -52,7 +55,9 @@ end
 % ////////////////////////////////////////////////////////////////////////
 % this estimates the z-threshold by using the fwhm method of the
 % distribution.  This method is better than the tail method because it will
-% ignore outliers
+% ignore outliers. There are other good methods, like empirically find the
+% point at which its unlikely that there is this number of datapoints this
+% high above the mean +/- sd given all other dataponts below it
 function thresh = estimatethresh(fltnd,params)
 
 fnmin = max([1 find(params.fvec<params.freqmin,1,'last')]);
@@ -61,7 +66,7 @@ cut = fltnd(fnmin:fnmax,:);
 %bin = -0.05:0.1:10;
 % bin counts, bin edges
 [binC,binE]=histcounts(cut(:));% should get you over a thousand
-[~,centerind]=max(binC); % this oughtt o be the max
+[~,centerind]=max(binC); % this ought to be the max
 edges=binE(binC>(max(binC)/2)); % get all bins that are above half the max bin
 fwhmDist=edges(end)-edges(1); % find the full width of that area
 % add half that width to the center index, multiply by 2.35
@@ -124,7 +129,7 @@ function [onoffset,onoffsetm,onoffsig,blobthrshd] = detectonoffset(thrshd,params
 
 %%% first parse syllables %%%
 
-% Mimnimum vocalization height (has to be high for 1000 hz in a row)
+% Mimnimum vocalization height (has to be high for 1200 hz in a row)
 onoffthresh=ceil(length(params.fvec)/(params.fvec(end)-params.fvec(1))*1200);
 % onset/offset detection (take timeseries wherein there are at least thrshd
 % number of consecutive high volume freqs

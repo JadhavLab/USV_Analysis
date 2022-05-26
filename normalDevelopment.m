@@ -4,7 +4,8 @@
 % images from 15 khz to 90 khz
 
 
-runSess=USVlegend(lower(USVlegend.Sex)=='m' & USVlegend.age>13,:);
+runSess=USVlegend(lower(USVlegend.Sex)=='m',:);
+callFolder='E:\Brandeis datasets\FMR1 Project Data\USV data\segData';
 %runSess=USVlegend(USVlegend.age>10,:);
 allcalls=[]; allCalldurs=[];
 wb=waitbar(0,'concatenating animal images');
@@ -13,11 +14,11 @@ wb=waitbar(0,'concatenating animal images');
 bigclock=tic;
 for i=1:height(runSess)
 
-    load(fullfile(runSess.folder(i,:),runSess.name(i)),'blobs','segCalls','params','spect');
+    load(fullfile(callFolder,runSess.name(i)),'blobs','segCalls','params','spect');
     okfreqs=params.fvec>15000 & params.fvec<90000;
     badcalls=segCalls.onsetTime<5 | segCalls.offsetTime>min([180 size(blobs,2)*params.timestep])-5;
     segCalls=segCalls(~badcalls,:);
-    mycalls=false(128,128,1,height(segCalls));
+    mycalls=nan(128,128,1,height(segCalls));
     callcenters=mean(table2array(segCalls(:,1:2)),2);
     centerinds=interp1(params.tvec,1:length(params.tvec),callcenters,'nearest');
     calldurs=(segCalls.offsetTime-segCalls.onsetTime)/params.timestep;
@@ -55,12 +56,15 @@ for i=1:height(allCallinfo)
     allCallinfo.Genotype(i)=runSess.Genotype(allCallinfo.sessionNumber(i));
 end
 
-%save('AllCallImages','runSess','allCallinfo','allcalls','-v7.3')
+save('AllCallImages_Male_20220318','runSess','allCallinfo','allcalls','-v7.3')
 
 %%
 
 % this is all images for all sessions:
-load('G:\USV data\AllCallImages');
+load('E:\Brandeis datasets\FMR1 Project Data\USV data\AllCallImages_Male_20220318');
+
+testimages=allcalls(:,:,:,randi(size(allcalls,4),10));
+figure; imagesc(imtile(testimages))
 
 
 [data] = run_VAE_encoder(encoderNet,allcalls);

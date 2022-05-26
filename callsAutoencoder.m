@@ -16,26 +16,16 @@ edit generate_betaVAE_encoder
 % is throttled by the size of the gpu i guess...
 
 % 2. build encoder and decoder using those images
-[encoderNet,decoderNet,data] = generate_VAE_encoder(allcalls);
-[encoderNet,decoderNet,data] = generate_betaVAE_encoder(allcalls);
+%[encoderNet,decoderNet,data] = generate_VAE_encoder(allcalls);
+% this needs work
+%[encoderNet,decoderNet,data] = generate_betaVAE_encoder(allcalls);
 
+%%
 % make sure the vae works
 nRecons=30;
-for c=1:nRecons
-    idx = randi(size(allcalls,4),1); % pull random
-    X = dlarray(allcalls(:,:,:,idx), 'SSCB');
-    
-    [z, ~, ~] = sampling(encoderNet, X);
-    XPred = sigmoid(forward(decoderNet, z));
-    
-    X = gather(extractdata(X));
-    XPred = gather(extractdata(XPred));
-    
-    comparison = [X, ones(size(X,1),1), XPred];
-    figure; imshow(comparison,[]); set(gcf,'Position',[560 670 750 415]);
-    title("Example ground truth image vs. reconstructed image")
+images = dlarray(allcalls, 'SSCB');
 
-end
+  peekVAE(encoderNet,decoderNet,images,nRecons)
 %
 
 % 4. put the callduration back in
