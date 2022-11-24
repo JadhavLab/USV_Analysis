@@ -246,13 +246,7 @@ z = reshape(z, [1,1,sz]); % reshape these variables by dimension
 zSampled = dlarray(z, 'SSCB'); % send into your dlarray
 end
 
-function [infGrad, genGrad] = modelGradients(encoderNet, decoderNet, x)
-[z, zMean, zLogvar] = sampling(encoderNet, x);
-xPred = sigmoid(forward(decoderNet, z));
-loss = ELBOloss(x, xPred, zMean, zLogvar);% the loss is the kl divergence % 
-[genGrad, infGrad] = dlgradient(loss, decoderNet.Learnables, ...
-    encoderNet.Learnables);
-end
+
 
 %%%%% LOSS FUNCTION STUFF %%%%%
 

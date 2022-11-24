@@ -100,6 +100,12 @@ segment usvs, dont fuck with it, it should just work.
 % and finds the raw wavfiles for you
 edit getCallTimes;
 
+% So now I want to see whether some sessions are actually messed up and
+% thats why I have no calls or too many calls from them
+
+statsdir=uigetdir();
+callFiles=dir(statsdir);
+% now get the call counts for all of them
 
 
 %% now generate a metadata struct
@@ -109,12 +115,33 @@ edit getCallTimes;
 % USVlegend is saved in USVmetadataC1-9.mat
 %load('G:\USV data\USVmetadataC1-9');
 %load('C:\Users\John Bladon\Desktop\USVmetaData1-6-2021.mat')
-load('C:\Users\John Bladon\Desktop\USVmetaData1-6-2021.mat')
+%load('C:\Users\John Bladon\Desktop\USVmetaData1-6-2021.mat')
+% this has variable USVlegend that has age sex genotype weight
+load('E:\Brandeis datasets\FMR1 Project Data\USV data\USVmetadataC1-9.mat')
 
 % i will generate a new latentscore variable for each day that is the vae
 % deconstruction of the data.  I'll have to save the vae encoder and
 % decoder data so that I can use it to reconstruct centroids and examples.
+%% to gather the call data
+wavDir='E:\Brandeis datasets\FMR1 Project Data\USV data\raw\Wav files';
+outDir='E:\Brandeis datasets\FMR1 Project Data\USV data\calls4-19-22';
+mkdir(outDir);
 
+wavfiles=dir(wavDir);
+wavNames=cellfun(@(a) a(1:find(a=='.')-1), {wavfiles.name},'UniformOutput',false')';
+for i=1:height(USVlegend)
+    recName=char(USVlegend.name(i));
+    recString=recName(1:find(recName=='_',1,'last')-1);
+    wavPull=wavNames{contains(wavNames,recString)};
+    audiodata=audioinfo(fullfile(wavDir,strcat(wavPull,'.wav')));
+    %audiodata.data=audioread(fullfile(wavDir,strcat(wavPull,'.wav')));
+    [spect,thrshd,params,onoffset,onoffsetm,blobs]=usvsegDetect(audiodata);
+
+    save(fullfile(outDir,USVlegend.name(i)),'spect','params','onoffset','onoffsetm','audiodata','blobs');
+    fprintf('took %.f seconds\n',toc(thisf));
+    waitbar(i/height(USVlegend),wb,...
+        sprintf('runing now, probably %.2f mins left',toc/i/60*(height(USVlegend)-i)));
+end
 %unnecessary right now
 %{
 % first generate the input dataset.
@@ -155,23 +182,11 @@ for i=1:length(statfiles)
     USVlegend(i,:)=filedata;
 end
 %}
+
+
+%
+edit ageAnalysis; % not a script yet
 %%
-
-% first is to show that there are two solid groups- young and old animals.
-% to do this... probably can use basic metrics
-
-statsdir=uigetdir();
-statsdir='E:\Brandeis datasets\FMR1 Project Data\USV data\segData';
-% add all the
-for i=1:height(allSessions)
-    % add some stats data to the files you can
-    newfilename=[allSessions.fileName{i}(1:end-4) '_callData.mat'];
-    datafile=fullfile(statsdir,newfilename);
-    allSessions.callStats{i}=load(datafile,'calldata');
-end
-
-edit age_analysis; % not a script yet
-
 %** principal frequency, frequency spread, and call duration covary
 % could also plot the covariance matrix of all these metrics
 % basically plot a few parameters together, then maybe run 2 group kmeans
@@ -199,7 +214,8 @@ edit callsAutoencoder;
 
 
 
-%% using deepsqueak...
+%% Detect calls here:
+
 callfiledir='G:\USV data\Detections';
 if ~isfolder(callfiledir)
     callfiledir=uigetdir;
@@ -208,6 +224,10 @@ callfiles=getAllFiles(callfiledir);
 wb=waitbar(0,'starting');
 tic;
 % this will take roughly 12 hours to run, or overnight
+% or get this from the USVlegend
+callfiles=USVlegend;
+%%
+
 for i=1:length(callfiles)
     thisf=tic;
     load(callfiles{i});

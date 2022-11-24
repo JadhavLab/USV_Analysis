@@ -5,7 +5,7 @@ function [data] = run_VAE_encoder(encoderNet,imageStack)
 
 numEpochs = 200;
 miniBatchSize = 512;
-nLatentDim=12;
+nLatentDim=6;
 
 
 images = dlarray(imageStack, 'SSCB');

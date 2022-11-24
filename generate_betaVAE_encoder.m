@@ -5,7 +5,7 @@ function [encoderNet,decoderNet,data] = generate_betaVAE_encoder(imageStack,enco
 % data are
 allcalls=imageStack;
 numEpochs = 100;
-miniBatchSize = 512;
+miniBatchSize = 256;
 nLatentDim=8;
 lossMethod=1;
 
@@ -131,7 +131,7 @@ function [encoderNet, decoderNet] = train_vae(encoderNet, decoderNet, XTrain, XT
 numTrainImages = size(XTrain, 4);
 
 executionEnvironment = "auto";
-
+% learning rate should be somewhere between 1e-1 and 1e-3
 lr = 1e-3;
 numIterations = floor(numTrainImages/miniBatchSize);
 iteration = 0;
