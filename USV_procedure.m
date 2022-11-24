@@ -98,7 +98,7 @@ segment usvs, dont fuck with it, it should just work.
 
 % first, you run USVmetadataAnalysis, this aggregates all your metadata,
 % and finds the raw wavfiles for you
-getCallTimes;
+edit getCallTimes;
 
 
 
